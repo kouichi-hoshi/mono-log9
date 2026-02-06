@@ -1,3 +1,18 @@
+---
+title: 技術スタック
+source: internal
+author:
+  -
+published:
+created: 2026-02-06
+description: フロントエンド/UI実装で採用する技術スタックとUI規約の整理。
+tags:
+  - docs
+  - tech-stack
+  - frontend
+  - ui
+---
+
 # 技術スタック
 
 ## 目的/スコープ

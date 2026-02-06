@@ -1,3 +1,18 @@
+---
+title: ワイヤーフレーム運用（Miro）
+source: Miro
+author:
+  -
+published:
+created: 2026-02-06
+description: Miroのワイヤーフレームを一次情報源としてUI実装を進めるための運用ルール。
+tags:
+  - docs
+  - wireframe
+  - miro
+  - ui
+---
+
 # ワイヤーフレーム運用（Miro）
 
 ## 目的/スコープ
