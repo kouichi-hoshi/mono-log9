@@ -31,14 +31,26 @@
   - テスト駆動開発による機能開発
 
 ## 実装の進め方
+
 - 運用サイクル
-  1. director: ドキュメントやプランを把握し、testerに作業指示を出す
+  1. director: ドキュメントを把握し、testerに作業指示を出す
   2. tester: テストケースを作成する
   3. ui-builder: UIを実装する
   4. programmer: テストケースに基づき、TDD、Red → Green → Refactorの順に実装する
   5. tester: programmerが作成・実施したテストコード、実行結果を確認する
   6. director: ドキュメントやプランに沿って実装ができているか確認する
 - 各運用サイクルで不備が見つかった場合は作業したサブエージェントに差し戻し、差し戻されたサブエージェントは作業を実行し、完了したら次の運用サイクルに移行する
+
+## ドキュメント
+
+開発に必要な資料は以下に格納されている。
+
+- docs/specs
+- docs/memo
+- docs/plan
+- docs/tech-stack
+- docs/wireframes
+- docs/old-docs
 
 ## 禁止事項
 
