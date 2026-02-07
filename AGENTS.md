@@ -46,6 +46,7 @@
 
 開発に必要な資料は以下に格納されている。
 
+- docs/manage
 - docs/specs
 - docs/memo
 - docs/plan
