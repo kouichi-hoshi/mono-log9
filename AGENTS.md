@@ -48,6 +48,7 @@
 
 - docs/manage
 - docs/specs
+- docs/designs
 - docs/memo
 - docs/plan
 - docs/tech-stack
