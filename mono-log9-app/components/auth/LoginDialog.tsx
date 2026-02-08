@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -15,10 +16,25 @@ import {
 const LOGIN_ERROR_MESSAGE =
   "ログインに失敗しました、サイト管理者にお問い合わせください";
 
-export default function LoginDialog() {
+type LoginDialogProps = {
+  stubAuthEnabled: boolean;
+  loginUrl: string;
+};
+
+export default function LoginDialog({
+  stubAuthEnabled,
+  loginUrl,
+}: LoginDialogProps) {
   const [open, setOpen] = React.useState(false);
+  const router = useRouter();
 
   const handleGoogleLogin = () => {
+    if (stubAuthEnabled) {
+      setOpen(false);
+      router.push(loginUrl);
+      return;
+    }
+
     toast.error(LOGIN_ERROR_MESSAGE);
     setOpen(false);
   };
