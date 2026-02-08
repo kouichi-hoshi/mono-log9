@@ -1,35 +1,35 @@
 ---
 name: commit-command
-description: Create git commits in this repo with a lint gate and Japanese commit message format. Use when the user asks to commit, create a commit message, or perform a git commit.
+description: このリポジトリで lint を必須として git commit を作成する。ユーザーがコミット作成・コミットメッセージ作成・git commit の実行を依頼したときに使用する。
 ---
 
-# Commit Command
+# コミットコマンド
 
-## Quick Start
+## クイックスタート
 
-When the user asks to commit:
-1. Check changes with `git status`, `git diff`, and `git diff --staged`.
-2. Stage intended files (prefer `git add -p`, or `git add <paths>`).
-3. Confirm no sensitive files are staged (see "Required Constraints").
-4. Run lint (this repo): prefer `pnpm -C mono-log lint` (fallback: `npm --prefix mono-log run lint`). If it fails, fix issues and rerun.
-5. Draft a Japanese commit message:
-   - 1st line: short title (e.g. `UI: 認証モーダルの表示改善`)
-   - blank line
-   - bullet list of concrete changes (`- 変更点1`)
-6. Show the title and bullets and ask for final confirmation (`y/n`).
-7. If `y`, commit using a HEREDOC. If `n`, stop.
+ユーザーがコミットを依頼した場合:
+1. `git status`、`git diff`、`git diff --staged` で変更を確認する。
+2. 目的のファイルをステージングする（`git add -p` または `git add <paths>` を優先）。
+3. 機密ファイルがステージされていないことを確認する（「必須制約」参照）。
+4. lint を実行する（このリポジトリ）: アプリディレクトリ（`package.json` がある場所）で `pnpm -C <app_dir> lint` を実行する。失敗したら修正して再実行する。
+5. 日本語のコミットメッセージを作成する:
+   - 1行目: 短いタイトル（例: `UI: 認証モーダルの表示改善`）
+   - 空行
+   - 具体的な変更点の箇条書き（`- 変更点1`）
+6. タイトルと箇条書きを提示し、最終確認（`y/n`）を求める。
+7. `y` の場合は HEREDOC でコミットする。`n` の場合は終了する。
 
-## Required Constraints
+## 必須制約
 
-- Lint is mandatory: do not commit if lint fails.
-- Never commit `.env` files or sensitive data. Follow `AGENTS.md` prohibitions.
-- Respect existing commit style; prefer the Japanese title + bullet list format.
-- Before committing, check staged paths and abort if suspicious:
-  - `git diff --staged --name-only | rg -n '(^|/)(\\.env(\\..*)?|\\.env.*)$'` (fallback: `grep -nE '(^|/)(\\.env(\\..*)?|\\.env.*)$'`)
+- lint は必須。lint が失敗したらコミットしない。
+- `.env` ファイルや秘匿情報はコミットしない。`AGENTS.md` の禁止事項に従う。
+- 既存のコミットスタイルを尊重し、日本語タイトル + 箇条書き形式を優先する。
+- コミット前にステージ済みパスを確認し、疑わしい場合は中止する:
+  - `git diff --staged --name-only | rg -n '(^|/)(\\.env(\\..*)?|\\.env.*)$'`（フォールバック: `grep -nE '(^|/)(\\.env(\\..*)?|\\.env.*)$'`）
 
-## Commit Message Template
+## コミットメッセージテンプレート
 
-Use this exact format:
+次の形式を厳守する:
 
 ```
 <日本語タイトル>
@@ -38,7 +38,7 @@ Use this exact format:
 - 変更点2
 ```
 
-## Commit Command Example
+## コミットコマンド例
 
 ```
 git commit -F - <<'EOF'
