@@ -9,6 +9,7 @@ source:
   - docs/tech-stack/tech-stack.md
 notes:
   - 余白は「適度に見やすい」標準スケールで実装し、Miroの微調整は後工程で最小差分にする
+進捗: 完了
 ---
 
 # 未ログイン（sm/md共通）画面 実装プラン
