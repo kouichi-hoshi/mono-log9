@@ -1,6 +1,6 @@
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
+import Container1 from "@/components/authed/Container1";
+import Container2 from "@/components/authed/Container2";
+import { stubPosts, stubTags, stubUser } from "@/components/authed/stubs";
 
 type AuthedScreenProps = {
   logoutUrl: string;
@@ -9,24 +9,21 @@ type AuthedScreenProps = {
 export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-10 md:grid-cols-[1fr_320px] md:px-6">
-        <main className="space-y-6">
-          <article className="rounded-lg border border-foreground/10 p-4">
-            <h1 className="text-lg font-semibold">ログイン中（スタブ）</h1>
-            <p className="mt-2 text-sm text-foreground/80">
-              `stubAuth=1` を検出したため、ログイン中画面を表示しています。
-            </p>
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-6 md:px-6 md:py-10">
+        <header className="hidden" aria-hidden="true">
+          <p>Authed header placeholder</p>
+        </header>
+        <main className="relative flex-1 md:grid md:grid-cols-[320px_1fr] md:gap-6">
+          <article className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-6xl px-4 pb-4 md:static md:z-auto md:mx-0 md:w-auto md:max-w-none md:px-0 md:pb-0">
+            <Container1 user={stubUser} tags={stubTags} logoutUrl={logoutUrl} />
           </article>
-          <article className="rounded-lg border border-foreground/10 p-4 text-sm text-foreground/80">
-            ログイン中UIの詳細実装は、作業計画書の後続タスクで追加します。
+          <article className="pb-72 md:pb-0">
+            <Container2 posts={stubPosts} tags={stubTags} />
           </article>
         </main>
-        <aside className="rounded-lg border border-foreground/10 p-4">
-          <p className="mb-3 text-sm font-medium">ユーザー操作</p>
-          <Button asChild className="w-full">
-            <Link href={logoutUrl}>ログアウト</Link>
-          </Button>
-        </aside>
+        <footer className="hidden" aria-hidden="true">
+          <p>Authed footer placeholder</p>
+        </footer>
       </div>
     </div>
   );
