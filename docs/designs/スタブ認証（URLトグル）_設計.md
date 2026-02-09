@@ -22,7 +22,7 @@ tags:
 - **dev-only** のデバッグスイッチとして `stubAuth=1` を扱う（仕様外のURL状態を恒久化しない）
 - 判定/ガードは **1箇所に集約** し、UIコンポーネントに散らさない
 - `NODE_ENV=test/production` では **必ず無効**（事故防止）
-- `stubAuth` 操作で `mode/view/tags/favorite` などの他クエリを **破壊しない**
+- `stubAuth` 操作で `mode/view/favorite` などの他クエリを **破壊しない**
 
 # 想定ファイル配置（案）
 
@@ -81,7 +81,7 @@ tags:
 - 既存の `searchParams` をコピーして編集する
 - ログイン: `stubAuth=1` を set
 - ログアウト: `stubAuth` を delete
-- `mode/view/tags/favorite` 等の他パラメータは保持する
+- `mode/view/favorite` 等の他パラメータは保持する
 
 （実装例: `new URLSearchParams(searchParams)` のような形で編集）
 
