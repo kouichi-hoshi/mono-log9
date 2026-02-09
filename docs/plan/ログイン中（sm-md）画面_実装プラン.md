@@ -38,14 +38,13 @@ notes:
 - `mono-log9-app/components/authed/PostEditor.tsx`: 投稿エディタUI（スタブ）。
 - `mono-log9-app/components/authed/PostSearch.tsx`: 検索/絞り込みUI（スタブ）。
 - `mono-log9-app/components/authed/PostCard.tsx`: 投稿カードUI（スタブ）。
-- `mono-log9-app/components/authed/TagEditor.tsx` + `TagCloud.tsx`: タグUI（スタブ）。
 - `mono-log9-app/components/authed/LoadingStates.tsx`: skeleton/空表示（#16）。
 
 ## スタブ挙動（統一ルール）
 
 - 状態は原則ローカル state（URL状態管理 #17 は別フェーズ）。
 - 主要ボタン/トグルは「見た目は変わるが保存/検索/更新しない」＋ `sonner` のトーストで「未実装」を通知。
-- ダミーデータは `mono-log9-app/components/authed/stubs.ts` に固定配列として切り出し、`AuthedScreen` はそれを注入してカード/タグ/検索UIに流し込む（疎結合）。
+- ダミーデータは `mono-log9-app/components/authed/stubs.ts` に固定配列として切り出し、`AuthedScreen` はそれを注入してカード/検索UIに流し込む（疎結合）。
 
 ## Definition of Done（本タスク）
 
@@ -57,5 +56,5 @@ notes:
 
 - `pnpm dev` で `/` を開き、`stubAuth=1` でログイン中画面になること。
 - 幅375相当と md+ の両方で、コンテナ1/2の配置とスクロール/固定が破綻しないこと。
-- 主要操作（保存/検索/スター/編集/削除/タグ追加など）がトーストで反応すること。
+- 主要操作（保存/検索/スター/編集/削除など）がトーストで反応すること。
 
