@@ -1,33 +1,71 @@
-import Link from "next/link";
+"use client";
 
-import { Button } from "@/components/ui/button";
+import * as React from "react";
+
+import Container1 from "@/components/authed/Container1";
+import Container2 from "@/components/authed/Container2";
+import { stubPosts, stubUser, type PostMode, type StubPost } from "@/components/authed/stubs";
 
 type AuthedScreenProps = {
   logoutUrl: string;
 };
 
 export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
+  const [mode, setMode] = React.useState<PostMode>("memo");
+  const [favoriteOnly, setFavoriteOnly] = React.useState(false);
+  const [posts, setPosts] = React.useState<StubPost[]>(() => stubPosts);
+
+  const filteredPosts = React.useMemo(() => {
+    return posts.filter((post) => {
+      if (post.mode !== mode) {
+        return false;
+      }
+
+      if (favoriteOnly && !post.favorite) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [favoriteOnly, mode, posts]);
+
+  const handleToggleFavorite = React.useCallback((postId: string) => {
+    setPosts((current) =>
+      current.map((post) =>
+        post.id === postId ? { ...post, favorite: !post.favorite } : post
+      )
+    );
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-10 md:grid-cols-[1fr_320px] md:px-6">
-        <main className="space-y-6">
-          <article className="rounded-lg border border-foreground/10 p-4">
-            <h1 className="text-lg font-semibold">ログイン中（スタブ）</h1>
-            <p className="mt-2 text-sm text-foreground/80">
-              `stubAuth=1` を検出したため、ログイン中画面を表示しています。
-            </p>
-          </article>
-          <article className="rounded-lg border border-foreground/10 p-4 text-sm text-foreground/80">
-            ログイン中UIの詳細実装は、作業計画書の後続タスクで追加します。
-          </article>
-        </main>
-        <aside className="rounded-lg border border-foreground/10 p-4">
-          <p className="mb-3 text-sm font-medium">ユーザー操作</p>
-          <Button asChild className="w-full">
-            <Link href={logoutUrl}>ログアウト</Link>
-          </Button>
-        </aside>
-      </div>
+      <header className="hidden">
+        <h1>Mono Log</h1>
+      </header>
+      <article className="sticky top-0">
+        <div className="border-b-2 px-4 py-4">
+          <div className="mx-auto w-full max-w-6xl">
+          <Container1
+            user={stubUser}
+            mode={mode}
+            favoriteOnly={favoriteOnly}
+            logoutUrl={logoutUrl}
+            onModeChange={setMode}
+            onFavoriteToggle={() => setFavoriteOnly((current) => !current)}
+          />
+          </div>
+        </div>
+      </article>
+      <main className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6 md:py-10">
+        <article>
+          <Container2
+            mode={mode}
+            posts={filteredPosts}
+            onToggleFavorite={handleToggleFavorite}
+          />
+        </article>
+      </main>
+      <footer className="hidden">© Mono Log</footer>
     </div>
   );
 }
