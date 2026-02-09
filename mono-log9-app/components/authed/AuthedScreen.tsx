@@ -1,6 +1,6 @@
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
+import Container1 from "@/components/authed/Container1";
+import Container2 from "@/components/authed/Container2";
+import { stubPosts, stubTags, stubUser } from "@/components/authed/stubs";
 
 type AuthedScreenProps = {
   logoutUrl: string;
@@ -9,25 +9,29 @@ type AuthedScreenProps = {
 export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-10 md:grid-cols-[1fr_320px] md:px-6">
-        <main className="space-y-6">
-          <article className="rounded-lg border border-foreground/10 p-4">
-            <h1 className="text-lg font-semibold">ログイン中（スタブ）</h1>
-            <p className="mt-2 text-sm text-foreground/80">
-              `stubAuth=1` を検出したため、ログイン中画面を表示しています。
-            </p>
+      <header className="hidden" aria-hidden="true">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 md:px-6">
+          <span className="text-sm font-semibold">Mono Log</span>
+          <span className="text-xs text-foreground/60">{logoutUrl}</span>
+        </div>
+      </header>
+      <main className="relative mx-auto w-full max-w-6xl px-4 pb-[320px] pt-6 md:px-6 md:pb-10">
+        <div className="md:grid md:grid-cols-[320px_1fr] md:gap-6">
+          <article className="md:sticky md:top-6 md:self-start">
+            <div className="fixed inset-x-0 bottom-0 z-30 max-h-[320px] overflow-y-auto md:static md:inset-auto md:max-h-none md:overflow-visible">
+              <Container1 tags={stubTags} user={stubUser} />
+            </div>
           </article>
-          <article className="rounded-lg border border-foreground/10 p-4 text-sm text-foreground/80">
-            ログイン中UIの詳細実装は、作業計画書の後続タスクで追加します。
+          <article className="space-y-4 md:space-y-6 md:pb-0">
+            <Container2 posts={stubPosts} />
           </article>
-        </main>
-        <aside className="rounded-lg border border-foreground/10 p-4">
-          <p className="mb-3 text-sm font-medium">ユーザー操作</p>
-          <Button asChild className="w-full">
-            <Link href={logoutUrl}>ログアウト</Link>
-          </Button>
-        </aside>
-      </div>
+        </div>
+      </main>
+      <footer className="hidden" aria-hidden="true">
+        <div className="mx-auto w-full max-w-6xl px-4 py-6 text-xs text-foreground/60 md:px-6">
+          Mono Log (stub footer)
+        </div>
+      </footer>
     </div>
   );
 }
