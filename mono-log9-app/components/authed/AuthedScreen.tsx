@@ -5,20 +5,21 @@ import * as React from "react";
 import Container1 from "@/components/authed/Container1";
 import Container2 from "@/components/authed/Container2";
 import HeaderPostArea from "@/components/authed/HeaderPostArea";
-import { stubPosts, stubUser, type PostMode, type StubPost } from "@/components/authed/stubs";
+import { stubPosts, stubUser, type PostMode, type StubPost, type ViewMode } from "@/components/authed/stubs";
 
 type AuthedScreenProps = {
   logoutUrl: string;
 };
 
 export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
-  const [mode, setMode] = React.useState<PostMode>("memo");
+  const [mode, setMode] = React.useState<ViewMode>("all");
+  const [composeTab, setComposeTab] = React.useState<PostMode>("memo");
   const [favoriteOnly, setFavoriteOnly] = React.useState(false);
   const [posts, setPosts] = React.useState<StubPost[]>(() => stubPosts);
 
   const filteredPosts = React.useMemo(() => {
     return posts.filter((post) => {
-      if (post.mode !== mode) {
+      if (mode !== "all" && post.mode !== mode) {
         return false;
       }
 
@@ -56,7 +57,11 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
         </div>
       </header>
       <section className="mx-auto w-full max-w-4xl px-4 py-4 md:px-6">
-        <HeaderPostArea mode={mode} />
+        <HeaderPostArea
+          viewMode={mode}
+          composeTab={composeTab}
+          onComposeTabChange={setComposeTab}
+        />
       </section>
       <main className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6 md:py-10">
         <article>

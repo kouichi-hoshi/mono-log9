@@ -1,17 +1,17 @@
 "use client";
 
-import { NotebookPen, Star, StickyNote, Trash2 } from "lucide-react";
+import { List, NotebookPen, Star, StickyNote, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import type { PostMode } from "@/components/authed/stubs";
+import type { ViewMode } from "@/components/authed/stubs";
 import { cn } from "@/lib/utils";
 
 type ModeToggleProps = {
   className?: string;
-  mode: PostMode;
+  mode: ViewMode;
   favoriteOnly: boolean;
-  onChange: (mode: PostMode) => void;
+  onChange: (mode: ViewMode) => void;
   onFavoriteToggle: () => void;
 };
 
@@ -22,7 +22,7 @@ export default function ModeToggle({
   onChange,
   onFavoriteToggle,
 }: ModeToggleProps) {
-  const handleChange = (next: PostMode) => {
+  const handleChange = (next: ViewMode) => {
     onChange(next);
     toast("未実装です");
   };
@@ -38,6 +38,19 @@ export default function ModeToggle({
 
   return (
     <div className={cn("flex w-full flex-wrap items-center gap-2", className)}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={cn(
+          "gap-2",
+          mode === "all" && "bg-foreground text-background hover:bg-foreground/90"
+        )}
+        onClick={() => handleChange("all")}
+      >
+        <List className="h-4 w-4" />
+        <span className="hidden text-xs md:inline">全て</span>
+      </Button>
       <Button
         type="button"
         variant="outline"

@@ -2,14 +2,14 @@
 
 import ModeToggle from "@/components/authed/ModeToggle";
 import UserMenu from "@/components/authed/UserMenu";
-import type { PostMode, StubUser } from "@/components/authed/stubs";
+import type { StubUser, ViewMode } from "@/components/authed/stubs";
 
 type Container1Props = {
   user: StubUser;
-  mode: PostMode;
+  mode: ViewMode;
   favoriteOnly: boolean;
   logoutUrl: string;
-  onModeChange: (mode: PostMode) => void;
+  onModeChange: (mode: ViewMode) => void;
   onFavoriteToggle: () => void;
 };
 

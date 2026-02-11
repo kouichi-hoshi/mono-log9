@@ -2,10 +2,10 @@
 
 import LoadingStates from "@/components/authed/LoadingStates";
 import PostCard from "@/components/authed/PostCard";
-import type { PostMode, StubPost } from "@/components/authed/stubs";
+import type { StubPost, ViewMode } from "@/components/authed/stubs";
 
 type Container2Props = {
-  mode: PostMode;
+  mode: ViewMode;
   posts: StubPost[];
   onToggleFavorite: (postId: string) => void;
 };
@@ -14,7 +14,7 @@ export default function Container2({ mode, posts, onToggleFavorite }: Container2
   return (
     <section className="space-y-4">
       <h2 className="text-lg font-semibold">
-        {mode === "memo" ? "メモ" : "ノート"}
+        {mode === "all" ? "全て" : mode === "memo" ? "メモ" : "ノート"}
       </h2>
 
       <div className="space-y-4">
