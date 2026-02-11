@@ -13,15 +13,9 @@ type Container2Props = {
 export default function Container2({ mode, posts, onToggleFavorite }: Container2Props) {
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-foreground/60">投稿一覧</p>
-          <h2 className="text-lg font-semibold">
-            {mode === "memo" ? "メモ" : "ノート"}
-          </h2>
-        </div>
-        <span className="text-xs text-foreground/60">{posts.length}件</span>
-      </div>
+      <h2 className="text-lg font-semibold">
+        {mode === "memo" ? "メモ" : "ノート"}
+      </h2>
 
       <div className="space-y-4">
         {posts.map((post) => (

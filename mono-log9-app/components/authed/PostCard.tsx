@@ -24,16 +24,12 @@ export default function PostCard({ post, onToggleFavorite }: PostCardProps) {
 
   return (
     <article className="rounded-lg border border-foreground/10 p-4 shadow-sm">
-      <div className="flex items-center justify-between text-xs text-foreground/60">
-        <span className="rounded-full border border-foreground/10 px-2 py-0.5">
-          {post.mode === "memo" ? "メモ" : "ノート"}
-        </span>
-        <span>{post.createdAt}</span>
-      </div>
-
+      {isNote && (
+        <div className="mb-3 text-xs text-foreground/60">{post.createdAt}</div>
+      )}
       <div
         className={cn(
-          "mt-3 whitespace-pre-wrap text-sm leading-relaxed",
+          "whitespace-pre-wrap text-sm leading-relaxed",
           isNote && !expanded && "max-h-48 overflow-hidden"
         )}
       >
