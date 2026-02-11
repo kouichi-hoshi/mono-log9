@@ -1,0 +1,6 @@
+[mcp_servers.mcp-miro]
+command = "bash"
+args = [
+  "-lc",
+  "source /Users/kouichi/project/my_project/mono-log/mono-log9/.env.miro && node /Users/kouichi/mcp-servers/mcp-miro/build/index.js",
+]

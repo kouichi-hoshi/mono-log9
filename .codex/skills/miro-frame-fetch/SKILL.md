@@ -1,66 +1,57 @@
 ---
 name: miro-frame-fetch
-description: Fetch Miro board frame data via the local mcp-miro server and a .env.miro file in mono-log9. Use when a user asks to connect to Miro, list frames, or retrieve items inside a specific frame for summary/table output.
+description: mono-log9 のローカル mcp-miro サーバーと .env.miro を使って Miro ボードのフレームデータを取得する。Miro に接続する、フレーム一覧を取得する、または特定フレーム内のアイテムを取得して要約・表形式で出力する依頼時に使用する。
 ---
 
 # Miro Frame Fetch
 
-## Overview
+## 概要
 
-Use the local Miro MCP server setup to read board frames and their items, then summarize results for the user.
+ローカルの Miro MCP サーバー構成を使ってボードのフレームとそのアイテムを読み取り、結果をユーザー向けに要約する。
 
-## Workflow
+## ワークフロー
 
-### 0) Declare skill usage in chat (required)
+### 0) チャットでスキル使用を宣言する（必須）
 
-Before using this skill, declare in chat (one line) that you are using it and why.
+このスキルを使う前に、チャットで1行、使用するスキルと理由を宣言する。
 
-Example:
+例:
 - `Skill: miro-frame-fetch を使用します（理由: Miroボードのフレーム一覧/指定フレーム内アイテムを取得するため）`
 
-### 1) Preconditions
+### 1) 前提条件
 
-- Miro MCP server location: `/Users/kouichi/mcp-servers/mcp-miro`
-- Env file location: `/Users/kouichi/project/my_project/mono-log/mono-log9/.env.miro`
-- `.env.miro` must contain:
-  - `MIRO_OAUTH_TOKEN`
-  - `MIRO_BOARD_ID`
+- Miro MCP サーバー場所: `/Users/kouichi/mcp-servers/mcp-miro`
+- 環境変数: `$ROOT/.env.miro`（`ROOT` はプロジェクトルート。以下同じ）
 
-If any value is missing, ask the user to set it before proceeding. Do not print the token in output.
+### 2) フレーム一覧の取得
 
-### 2) List frames
-
-Use the script to list frames:
+次のスクリプトでフレーム一覧を取得する（`ROOT` はプロジェクトルートの絶対パス）:
 
 ```bash
-node "/Users/kouichi/project/my_project/mono-log/mono-log9/.codex/skills/miro-frame-fetch/scripts/miro_fetch.mjs" \
-  --env "/Users/kouichi/project/my_project/mono-log/mono-log9/.env.miro" \
-  --list-frames
+ROOT="/Users/kouichi/project/my_project/mono-log/mono-log9"
+bash -lc "source \"$ROOT/.env.miro\" && node \"$ROOT/.codex/skills/miro-frame-fetch/scripts/miro_fetch.mjs\" --list-frames"
 ```
 
-Summarize the result as a table: frame title, count, and key notes if needed.
+結果を表形式で要約する: フレーム名、件数、必要に応じて備考。
 
-### 3) Fetch items inside a frame
+### 3) フレーム内アイテムの取得
 
-If the user specifies a frame name (e.g., "投稿エディタ"), fetch items:
+ユーザーがフレーム名（例: 「投稿エディタ」）を指定した場合、そのフレーム内のアイテムを取得する:
 
 ```bash
-node "/Users/kouichi/project/my_project/mono-log/mono-log9/.codex/skills/miro-frame-fetch/scripts/miro_fetch.mjs" \
-  --env "/Users/kouichi/project/my_project/mono-log/mono-log9/.env.miro" \
-  --frame-title "投稿エディタ"
+ROOT="/Users/kouichi/project/my_project/mono-log/mono-log9"
+bash -lc "source \"$ROOT/.env.miro\" && node \"$ROOT/.codex/skills/miro-frame-fetch/scripts/miro_fetch.mjs\" --frame-title \"投稿エディタ\""
 ```
 
-Then summarize items in a simple table:
-- type (shape/text/etc.)
-- text/content (if present)
-- size (width/height)
-- position (x/y)
+続いてアイテムを簡易な表で要約する:
+- タイプ（shape/text など）
+- テキスト/コンテンツ（あれば）
 
-### 4) Output expectations
+### 4) 出力の期待
 
-Keep output concise and redact secrets. Provide a short explanation for each frame if asked.
+出力は簡潔にし、秘密情報は伏せる。フレームごとの短い説明は、求められた場合に提供する。
 
-## Resources
+## リソース
 
 ### scripts/
-- `miro_fetch.mjs`: list frames or fetch items in a target frame using `.env.miro`.
+- `miro_fetch.mjs`: `process.env`（`MIRO_OAUTH_TOKEN`、`MIRO_BOARD_ID`）を使ってフレーム一覧の取得、または対象フレーム内アイテムの取得を行う。
