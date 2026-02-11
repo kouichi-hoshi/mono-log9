@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 import PostEditor from "@/components/authed/PostEditor";
 import type { PostMode, ViewMode } from "@/components/authed/stubs";
 
@@ -17,6 +19,18 @@ export default function HeaderPostArea({
   composeTab,
   onComposeTabChange,
 }: HeaderPostAreaProps) {
+  const [noteDraft, setNoteDraft] = React.useState("");
+  const [noteExpanded, setNoteExpanded] = React.useState(false);
+
+  const noteEditorVisible =
+    viewMode === "note" || (viewMode === "all" && composeTab === "note");
+
+  React.useEffect(() => {
+    if (!noteEditorVisible && noteExpanded) {
+      setNoteExpanded(false);
+    }
+  }, [noteEditorVisible, noteExpanded]);
+
   const renderEditor = (mode: PostMode) => {
     if (mode === "memo") {
       return (
@@ -33,7 +47,15 @@ export default function HeaderPostArea({
       );
     }
 
-    return <PostEditor mode="note" />;
+    return (
+      <PostEditor
+        mode="note"
+        value={noteDraft}
+        onValueChange={setNoteDraft}
+        expanded={noteExpanded}
+        onExpandedChange={setNoteExpanded}
+      />
+    );
   };
 
   if (viewMode === "memo") {
