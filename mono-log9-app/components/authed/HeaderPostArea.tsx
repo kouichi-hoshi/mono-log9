@@ -23,11 +23,11 @@ export default function HeaderPostArea({
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="メモを入力"
+            placeholder="メモを書く"
             className="h-11 min-w-0 flex-1 rounded-md border border-foreground/20 bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
           />
           <Button type="button" size="sm" className="h-11 shrink-0">
-            保存
+            追加
           </Button>
         </div>
       );

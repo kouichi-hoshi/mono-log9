@@ -35,9 +35,8 @@ export default function PostEditor({ mode, isEditing = false }: PostEditorProps)
 
   return (
     <div className="rounded-lg border border-foreground/10 p-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-foreground/60">投稿エディタ</p>
-        {mode === "note" && (
+      {mode === "note" && (
+        <div className="flex items-center justify-start">
           <Button
             type="button"
             variant="ghost"
@@ -46,10 +45,10 @@ export default function PostEditor({ mode, isEditing = false }: PostEditorProps)
           >
             {expanded ? "戻す" : "拡大"}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="mt-2">
+      <div className={mode === "note" ? "mt-2" : ""}>
         {mode === "memo" ? (
           <input
             type="text"
@@ -60,7 +59,7 @@ export default function PostEditor({ mode, isEditing = false }: PostEditorProps)
                 setShowAlert(false);
               }
             }}
-            placeholder="メモを入力"
+            placeholder="メモを書く"
             className="h-11 w-full rounded-md border border-foreground/20 bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
           />
         ) : (
@@ -72,9 +71,9 @@ export default function PostEditor({ mode, isEditing = false }: PostEditorProps)
                 setShowAlert(false);
               }
             }}
-            placeholder="ノートを入力"
+            placeholder="ノートを書く"
             rows={expanded ? 10 : 5}
-            className="w-full rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+            className="min-h-56 w-full rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
           />
         )}
       </div>
@@ -85,13 +84,23 @@ export default function PostEditor({ mode, isEditing = false }: PostEditorProps)
         </Alert>
       )}
 
-      <div className="mt-3 flex gap-2">
+      <div
+        className={
+          mode === "note"
+            ? "mt-3 flex justify-end gap-2"
+            : "mt-3 flex gap-2"
+        }
+      >
         {isEditing && (
           <Button type="button" variant="outline" onClick={handleCancel}>
             キャンセル
           </Button>
         )}
-        <Button type="button" className="flex-1" onClick={handleSave}>
+        <Button
+          type="button"
+          className={mode === "note" ? "min-w-24" : "flex-1"}
+          onClick={handleSave}
+        >
           {isEditing ? "更新" : "保存"}
         </Button>
       </div>
