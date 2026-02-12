@@ -12,6 +12,9 @@ type PostEditorProps = {
   isEditing?: boolean;
   value?: string;
   onValueChange?: (nextValue: string) => void;
+  showActions?: boolean;
+  showValidationError?: boolean;
+  onClearValidationError?: () => void;
 };
 
 export default function PostEditor({
@@ -19,11 +22,15 @@ export default function PostEditor({
   isEditing = false,
   value: valueProp,
   onValueChange,
+  showActions = true,
+  showValidationError = false,
+  onClearValidationError,
 }: PostEditorProps) {
   const [internalValue, setInternalValue] = React.useState("");
-  const [showAlert, setShowAlert] = React.useState(false);
+  const [showInternalAlert, setShowInternalAlert] = React.useState(false);
 
   const value = valueProp ?? internalValue;
+  const showAlert = showInternalAlert || showValidationError;
 
   const setValue = React.useCallback(
     (nextValue: string) => {
@@ -37,37 +44,36 @@ export default function PostEditor({
 
   const handleSave = () => {
     if (value.trim().length === 0) {
-      setShowAlert(true);
+      setShowInternalAlert(true);
       return;
     }
 
-    setShowAlert(false);
+    setShowInternalAlert(false);
     toast("未実装です");
   };
 
   const handleCancel = () => {
     setValue("");
-    setShowAlert(false);
+    setShowInternalAlert(false);
     toast("未実装です");
   };
 
   if (mode === "note") {
     return (
-      <div className="rounded-lg border border-foreground/10 p-3">
-        <div>
-          <textarea
-            value={value}
-            onChange={(event) => {
-              setValue(event.target.value);
-              if (showAlert) {
-                setShowAlert(false);
-              }
-            }}
-            placeholder="ノートを書く"
-            rows={12}
-            className="min-h-56 w-full rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
-          />
-        </div>
+      <>
+        <textarea
+          value={value}
+          onChange={(event) => {
+            setValue(event.target.value);
+            if (showAlert) {
+              setShowInternalAlert(false);
+              onClearValidationError?.();
+            }
+          }}
+          placeholder="ノートを書く"
+          rows={12}
+          className="h-full min-h-56 w-full rounded-md border border-foreground/10 bg-background px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+        />
 
         {showAlert && (
           <Alert className="mt-3">
@@ -75,22 +81,24 @@ export default function PostEditor({
           </Alert>
         )}
 
-        <div className="mt-3 flex justify-end gap-2">
-          {isEditing && (
-            <Button type="button" variant="outline" onClick={handleCancel}>
-              キャンセル
+        {showActions && (
+          <div className="mt-3 flex justify-end gap-2">
+            {isEditing && (
+              <Button type="button" variant="outline" onClick={handleCancel}>
+                キャンセル
+              </Button>
+            )}
+            <Button type="button" className="min-w-24" onClick={handleSave}>
+              {isEditing ? "更新" : "保存"}
             </Button>
-          )}
-          <Button type="button" className="min-w-24" onClick={handleSave}>
-            {isEditing ? "更新" : "保存"}
-          </Button>
-        </div>
-      </div>
+          </div>
+        )}
+      </>
     );
   }
 
   return (
-    <div>
+    <>
       <div className="flex items-stretch gap-2">
         <input
           type="text"
@@ -98,7 +106,8 @@ export default function PostEditor({
           onChange={(event) => {
             setValue(event.target.value);
             if (showAlert) {
-              setShowAlert(false);
+              setShowInternalAlert(false);
+              onClearValidationError?.();
             }
           }}
           placeholder="メモを書く"
@@ -129,6 +138,6 @@ export default function PostEditor({
           <AlertDescription>内容を入力してください</AlertDescription>
         </Alert>
       )}
-    </div>
+    </>
   );
 }

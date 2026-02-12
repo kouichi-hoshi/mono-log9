@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { toast } from "sonner";
 
+import EditorActionBar from "@/components/authed/EditorActionBar";
 import PostEditor from "@/components/authed/PostEditor";
 import FullscreenModal from "@/components/ui/FullscreenModal";
 import {
@@ -22,11 +24,13 @@ type NoteComposerModalProps = {
 
 export default function NoteComposerModal({ open, onOpenChange }: NoteComposerModalProps) {
   const [noteDraft, setNoteDraft] = React.useState("");
+  const [showValidationError, setShowValidationError] = React.useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = React.useState(false);
 
   const closeNoteModal = React.useCallback(() => {
     onOpenChange(false);
     setNoteDraft("");
+    setShowValidationError(false);
   }, [onOpenChange]);
 
   const requestCloseNoteModal = React.useCallback(() => {
@@ -38,15 +42,34 @@ export default function NoteComposerModal({ open, onOpenChange }: NoteComposerMo
     setIsDiscardDialogOpen(true);
   }, [closeNoteModal, noteDraft]);
 
+  const handleSaveNote = React.useCallback(() => {
+    if (noteDraft.trim().length === 0) {
+      setShowValidationError(true);
+      return;
+    }
+
+    setShowValidationError(false);
+    toast("未実装です");
+  }, [noteDraft]);
+
   return (
     <>
       <FullscreenModal
         open={open}
         onOpenChange={onOpenChange}
         title="ノートを書く"
+        contentWrapperClassName="p-5 max-w-4xl"
         onRequestClose={requestCloseNoteModal}
+        footer={<EditorActionBar onClose={requestCloseNoteModal} onSave={handleSaveNote} />}
       >
-        <PostEditor mode="note" value={noteDraft} onValueChange={setNoteDraft} />
+        <PostEditor
+          mode="note"
+          value={noteDraft}
+          onValueChange={setNoteDraft}
+          showActions={false}
+          showValidationError={showValidationError}
+          onClearValidationError={() => setShowValidationError(false)}
+        />
       </FullscreenModal>
 
       <AlertDialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>

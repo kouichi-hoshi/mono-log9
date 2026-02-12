@@ -2,15 +2,17 @@
 
 import * as React from "react";
 
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 type FullscreenModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
   onRequestClose?: () => void;
+  contentWrapperClassName?: string;
 };
 
 export default function FullscreenModal({
@@ -18,7 +20,9 @@ export default function FullscreenModal({
   onOpenChange,
   title,
   children,
+  footer,
   onRequestClose,
+  contentWrapperClassName,
 }: FullscreenModalProps) {
   const handleRequestClose = React.useCallback(() => {
     if (onRequestClose) {
@@ -41,16 +45,16 @@ export default function FullscreenModal({
         handleRequestClose();
       }}
     >
-      <DialogContent className="left-0 top-0 h-screen w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0 [&>button[aria-label='閉じる']]:hidden">
+      <DialogContent
+        showCloseButton={false}
+        className="left-0 top-0 h-screen w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0"
+      >
         <DialogTitle className="sr-only">{title}</DialogTitle>
-
-        <div className="flex h-full flex-col bg-background">
-          <div className="flex items-center justify-end border-b border-foreground/10 px-4 py-3 md:px-6">
-            <Button type="button" variant="outline" size="sm" onClick={handleRequestClose}>
-              閉じる
-            </Button>
+        <div className={cn("mx-auto h-full w-full", contentWrapperClassName)}>
+          <div className="flex h-full flex-col bg-background">
+            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+            {footer && <div>{footer}</div>}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">{children}</div>
         </div>
       </DialogContent>
     </Dialog>
