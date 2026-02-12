@@ -5,6 +5,7 @@ import * as React from "react";
 import Container1 from "@/components/authed/Container1";
 import Container2 from "@/components/authed/Container2";
 import HeaderPostArea from "@/components/authed/HeaderPostArea";
+import NoteComposerModal from "@/components/authed/NoteComposerModal";
 import { stubPosts, stubUser, type StubPost, type ViewMode } from "@/components/authed/stubs";
 
 type AuthedScreenProps = {
@@ -15,6 +16,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const [mode, setMode] = React.useState<ViewMode>("all");
   const [favoriteOnly, setFavoriteOnly] = React.useState(false);
   const [posts, setPosts] = React.useState<StubPost[]>(() => stubPosts);
+  const [isNoteModalOpen, setIsNoteModalOpen] = React.useState(false);
 
   const filteredPosts = React.useMemo(() => {
     return posts.filter((post) => {
@@ -51,6 +53,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
               logoutUrl={logoutUrl}
               onModeChange={setMode}
               onFavoriteToggle={() => setFavoriteOnly((current) => !current)}
+              onNoteComposeClick={() => setIsNoteModalOpen(true)}
             />
           </div>
         </div>
@@ -67,6 +70,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
           />
         </article>
       </main>
+      <NoteComposerModal open={isNoteModalOpen} onOpenChange={setIsNoteModalOpen} />
       <footer className="hidden">© Mono Log</footer>
     </div>
   );
