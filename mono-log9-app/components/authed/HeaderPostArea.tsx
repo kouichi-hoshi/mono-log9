@@ -3,100 +3,109 @@
 import * as React from "react";
 
 import PostEditor from "@/components/authed/PostEditor";
-import type { PostMode, ViewMode } from "@/components/authed/stubs";
+import type { ViewMode } from "@/components/authed/stubs";
 
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import FullscreenModal from "@/components/ui/FullscreenModal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type HeaderPostAreaProps = {
   viewMode: ViewMode;
-  composeTab: PostMode;
-  onComposeTabChange: (tab: PostMode) => void;
 };
 
-export default function HeaderPostArea({
-  viewMode,
-  composeTab,
-  onComposeTabChange,
-}: HeaderPostAreaProps) {
+export default function HeaderPostArea({ viewMode }: HeaderPostAreaProps) {
   const [noteDraft, setNoteDraft] = React.useState("");
-  const [noteExpanded, setNoteExpanded] = React.useState(false);
+  const [isNoteModalOpen, setIsNoteModalOpen] = React.useState(false);
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = React.useState(false);
 
-  const noteEditorVisible =
-    viewMode === "note" || (viewMode === "all" && composeTab === "note");
+  const openNoteModal = React.useCallback(() => {
+    setIsNoteModalOpen(true);
+  }, []);
 
-  React.useEffect(() => {
-    if (!noteEditorVisible && noteExpanded) {
-      setNoteExpanded(false);
-    }
-  }, [noteEditorVisible, noteExpanded]);
+  const closeNoteModal = React.useCallback(() => {
+    setIsNoteModalOpen(false);
+    setNoteDraft("");
+  }, []);
 
-  const renderEditor = (mode: PostMode) => {
-    if (mode === "memo") {
-      return (
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="メモを書く"
-            className="h-11 min-w-0 flex-1 rounded-md border border-foreground/20 bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
-          />
-          <Button type="button" size="sm" className="h-11 shrink-0">
-            追加
-          </Button>
-        </div>
-      );
+  const requestCloseNoteModal = React.useCallback(() => {
+    if (noteDraft.trim().length === 0) {
+      closeNoteModal();
+      return;
     }
 
-    return (
-      <PostEditor
-        mode="note"
-        value={noteDraft}
-        onValueChange={setNoteDraft}
-        expanded={noteExpanded}
-        onExpandedChange={setNoteExpanded}
-      />
-    );
-  };
+    setIsDiscardDialogOpen(true);
+  }, [closeNoteModal, noteDraft]);
+
+  const renderNoteModal = () => (
+    <>
+      <FullscreenModal
+        open={isNoteModalOpen}
+        onOpenChange={setIsNoteModalOpen}
+        title="ノートを書く"
+        onRequestClose={requestCloseNoteModal}
+      >
+        <PostEditor mode="note" value={noteDraft} onValueChange={setNoteDraft} />
+      </FullscreenModal>
+
+      <AlertDialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>入力中の内容を破棄しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              閉じると入力中のノートは削除されます。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>編集を続ける</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setIsDiscardDialogOpen(false);
+                closeNoteModal();
+              }}
+            >
+              破棄して閉じる
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+
+  const renderNoteOpenButton = () => (
+    <Button type="button" variant="outline" size="sm" className="gap-2" onClick={openNoteModal}>
+      ノートを書く
+    </Button>
+  );
 
   if (viewMode === "memo") {
-    return renderEditor("memo");
+    return <PostEditor mode="memo" />;
   }
 
   if (viewMode === "note") {
-    return renderEditor("note");
+    return (
+      <div className="space-y-3">
+        {renderNoteOpenButton()}
+        {renderNoteModal()}
+      </div>
+    );
   }
 
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className={cn(
-            "gap-2",
-            composeTab === "memo" &&
-              "bg-foreground text-background hover:bg-foreground/90"
-          )}
-          onClick={() => onComposeTabChange("memo")}
-        >
-          メモ
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className={cn(
-            "gap-2",
-            composeTab === "note" &&
-              "bg-foreground text-background hover:bg-foreground/90"
-          )}
-          onClick={() => onComposeTabChange("note")}
-        >
-          ノート
-        </Button>
+        {renderNoteOpenButton()}
       </div>
-      <div>{renderEditor(composeTab)}</div>
+      <PostEditor mode="memo" />
+      {renderNoteModal()}
     </div>
   );
 }
