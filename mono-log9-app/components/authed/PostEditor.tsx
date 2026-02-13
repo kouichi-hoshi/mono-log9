@@ -129,7 +129,7 @@ export default function PostEditor({
           className="min-w-24 px-4"
           onClick={handleSave}
         >
-          {isEditing ? "更新" : "追加"}
+          {isEditing ? "更新" : "保存"}
         </Button>
       </div>
 

@@ -13,14 +13,18 @@ type AuthedScreenProps = {
 };
 
 export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
-  const [mode, setMode] = React.useState<ViewMode>("all");
-  const [favoriteOnly, setFavoriteOnly] = React.useState(false);
+  const [mode, setMode] = React.useState<ViewMode>("memo");
+  const [favoriteOnlyByMode, setFavoriteOnlyByMode] = React.useState<Record<ViewMode, boolean>>({
+    memo: false,
+    note: false,
+  });
   const [posts, setPosts] = React.useState<StubPost[]>(() => stubPosts);
   const [isNoteModalOpen, setIsNoteModalOpen] = React.useState(false);
+  const favoriteOnly = favoriteOnlyByMode[mode];
 
   const filteredPosts = React.useMemo(() => {
     return posts.filter((post) => {
-      if (mode !== "all" && post.mode !== mode) {
+      if (post.mode !== mode) {
         return false;
       }
 
@@ -31,6 +35,13 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       return true;
     });
   }, [favoriteOnly, mode, posts]);
+
+  const handleFavoriteFilterToggle = React.useCallback(() => {
+    setFavoriteOnlyByMode((current) => ({
+      ...current,
+      [mode]: !current[mode],
+    }));
+  }, [mode]);
 
   const handleToggleFavorite = React.useCallback((postId: string) => {
     setPosts((current) =>
@@ -49,25 +60,24 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
             <Container1
               user={stubUser}
               mode={mode}
-              favoriteOnly={favoriteOnly}
               logoutUrl={logoutUrl}
               onModeChange={setMode}
-              onFavoriteToggle={() => setFavoriteOnly((current) => !current)}
-              onNoteComposeClick={() => setIsNoteModalOpen(true)}
             />
           </div>
         </div>
       </header>
       <section className="mx-auto w-full max-w-4xl px-4 py-4 md:px-6">
-        <HeaderPostArea viewMode={mode} />
+        <HeaderPostArea viewMode={mode} onNoteComposeClick={() => setIsNoteModalOpen(true)} />
       </section>
       <main className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6 md:py-10">
         <article>
-          <Container2
-            mode={mode}
-            posts={filteredPosts}
-            onToggleFavorite={handleToggleFavorite}
-          />
+              <Container2
+                mode={mode}
+                favoriteOnly={favoriteOnly}
+                posts={filteredPosts}
+                onFavoriteToggle={handleFavoriteFilterToggle}
+                onToggleFavorite={handleToggleFavorite}
+              />
         </article>
       </main>
       <NoteComposerModal open={isNoteModalOpen} onOpenChange={setIsNoteModalOpen} />

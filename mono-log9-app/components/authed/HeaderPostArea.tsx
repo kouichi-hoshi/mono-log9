@@ -2,14 +2,30 @@
 
 import PostEditor from "@/components/authed/PostEditor";
 import type { ViewMode } from "@/components/authed/stubs";
+import { Button } from "@/components/ui/button";
+import { PencilLine } from "lucide-react";
 
 type HeaderPostAreaProps = {
   viewMode: ViewMode;
+  onNoteComposeClick: () => void;
 };
 
-export default function HeaderPostArea({ viewMode }: HeaderPostAreaProps) {
+export default function HeaderPostArea({ viewMode, onNoteComposeClick }: HeaderPostAreaProps) {
   if (viewMode === "note") {
-    return null;
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="shrink-0 gap-2"
+        aria-label="ノートを書く"
+        onClick={onNoteComposeClick}
+      >
+        <PencilLine className="h-4 w-4" />
+        <span className="md:hidden">ノート</span>
+        <span className="hidden md:inline">ノートを書く</span>
+      </Button>
+    );
   }
 
   return <PostEditor mode="memo" />;

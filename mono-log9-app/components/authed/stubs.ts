@@ -1,5 +1,5 @@
 export type PostMode = "memo" | "note";
-export type ViewMode = PostMode | "all";
+export type ViewMode = PostMode;
 
 export type StubPost = {
   id: string;
