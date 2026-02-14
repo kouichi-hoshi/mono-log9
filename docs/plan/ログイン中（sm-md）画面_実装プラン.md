@@ -6,14 +6,14 @@ source:
   - docs/manage/作業計画書.md
   - docs/specs/05.仕様書 UI.md
 notes:
-  - 本プランはフェーズ1（UIのみ）で、ごみ箱（#14/#15）は別タスクとして除外する
+  - 本プランはフェーズ1（UIのみ）で、ごみ箱（#11/#12）は別タスクとして除外する
 ---
 
 ## 目的
 
 - ログイン中（スタブ認証）時に表示される `AuthedScreen`（`mono-log9-app/components/authed/AuthedScreen.tsx`）を、Miro「ログイン中（sm）」「ログイン中(md)」フレームの配置に寄せて **UIのみ** で作る。
 - `docs/specs/05.仕様書 UI.md` の「ログイン済み: main に article が2つ（コンテナ1/2）」に合わせ、sm/md のレイアウト差分を Tailwind で担保する。
-- ごみ箱（作業計画書 #14/#15）は本タスクから除外する（画面・導線・操作ともに着手しない）。
+- ごみ箱（作業計画書 #11/#12）は本タスクから除外する（画面・導線・操作ともに着手しない）。
 
 ## 前提（現状確認）
 
@@ -38,23 +38,22 @@ notes:
 - `mono-log9-app/components/authed/PostEditor.tsx`: 投稿エディタUI（スタブ）。
 - `mono-log9-app/components/authed/PostSearch.tsx`: 検索/絞り込みUI（スタブ）。
 - `mono-log9-app/components/authed/PostCard.tsx`: 投稿カードUI（スタブ）。
-- `mono-log9-app/components/authed/LoadingStates.tsx`: skeleton/空表示（#16）。
+- `mono-log9-app/components/authed/LoadingStates.tsx`: skeleton/空表示（#13）。
 
 ## スタブ挙動（統一ルール）
 
-- 状態は原則ローカル state（URL状態管理 #17 は別フェーズ）。
+- 状態は原則ローカル state（URL状態管理 #14 は別フェーズ）。
 - 主要ボタン/トグルは「見た目は変わるが保存/検索/更新しない」＋ `sonner` のトーストで「未実装」を通知。
 - ダミーデータは `mono-log9-app/components/authed/stubs.ts` に固定配列として切り出し、`AuthedScreen` はそれを注入してカード/検索UIに流し込む（疎結合）。
 
 ## Definition of Done（本タスク）
 
 - sm と md+ でレイアウトが Miro の意図（sm: 下固定コンテナ1、md+: 左固定/右スクロール）に沿って見える。
-- 作業計画書 #5-#13/#16 の UI が「操作できる形（スタブ）」で揃う。
-- ごみ箱UI（#14/#15）は表示・導線を追加しない。
+- 作業計画書 #5-#13 の UI が「操作できる形（スタブ）」で揃う。
+- ごみ箱UI（#11/#12）は表示・導線を追加しない。
 
 ## 手動確認（開発者）
 
 - `pnpm dev` で `/` を開き、`stubAuth=1` でログイン中画面になること。
 - 幅375相当と md+ の両方で、コンテナ1/2の配置とスクロール/固定が破綻しないこと。
 - 主要操作（保存/検索/スター/編集/削除など）がトーストで反応すること。
-
