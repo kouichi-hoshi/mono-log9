@@ -201,6 +201,16 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     }
   }, []);
 
+  const handleRestoreTrashPostStub = React.useCallback((postId: string) => {
+    void postId;
+    toast("未実装です");
+  }, []);
+
+  const handlePermanentDeleteTrashPostStub = React.useCallback((postId: string) => {
+    void postId;
+    toast("未実装です");
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0">
@@ -251,6 +261,8 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
             onClearTrashPostSelection={handleClearTrashPostSelection}
             onRequestDeleteSelectedTrashPosts={handleRequestDeleteSelectedTrashPosts}
             onRequestEmptyTrash={handleRequestEmptyTrash}
+            onRestoreTrashPostStub={handleRestoreTrashPostStub}
+            onPermanentDeleteTrashPostStub={handlePermanentDeleteTrashPostStub}
           />
         </article>
       </main>

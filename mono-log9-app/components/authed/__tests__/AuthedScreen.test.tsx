@@ -73,7 +73,7 @@ describe("AuthedScreen", () => {
     expect(screen.getByRole("button", { name: "保存する" })).toBeInTheDocument();
   });
 
-  it("hides post action buttons in trash view", async () => {
+  it("shows trash item action buttons in trash view", async () => {
     const user = userEvent.setup();
 
     render(<AuthedScreen logoutUrl="/" />);
@@ -83,8 +83,22 @@ describe("AuthedScreen", () => {
     expect(screen.queryByRole("button", { name: "お気に入り" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "編集" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "削除" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "復元" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "完全に削除" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "復元" })).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: "完全に削除" })).toHaveLength(3);
+  });
+
+  it("fires stub toast when clicking trash item action buttons", async () => {
+    const user = userEvent.setup();
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
+
+    await user.click(screen.getAllByRole("button", { name: "復元" })[0]);
+    await user.click(screen.getAllByRole("button", { name: "完全に削除" })[0]);
+
+    expect(toast).toHaveBeenCalledWith("未実装です");
+    expect((toast as jest.Mock).mock.calls).toHaveLength(2);
   });
 
   it("shows bulk actions and updates selected count from row checkbox", async () => {

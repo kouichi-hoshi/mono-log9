@@ -1,15 +1,24 @@
 "use client";
 
 import type { StubTrashPost } from "@/components/authed/stubs";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type TrashPostCardProps = {
   post: StubTrashPost;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  onRestore: (postId: string) => void;
+  onPermanentDelete: (postId: string) => void;
 };
 
-export default function TrashPostCard({ post, checked, onCheckedChange }: TrashPostCardProps) {
+export default function TrashPostCard({
+  post,
+  checked,
+  onCheckedChange,
+  onRestore,
+  onPermanentDelete,
+}: TrashPostCardProps) {
   const body = post.mode === "note" && post.title?.trim() ? post.title : post.content;
   const checkboxId = `trash-select-${post.id}`;
 
@@ -30,6 +39,14 @@ export default function TrashPostCard({ post, checked, onCheckedChange }: TrashP
         </span>
       </div>
       <div className="whitespace-pre-wrap text-sm leading-relaxed">{body}</div>
+      <div className="mt-3 flex justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={() => onRestore(post.id)}>
+          復元
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => onPermanentDelete(post.id)}>
+          完全に削除
+        </Button>
+      </div>
     </article>
   );
 }

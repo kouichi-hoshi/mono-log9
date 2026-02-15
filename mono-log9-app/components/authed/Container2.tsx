@@ -30,6 +30,8 @@ type Container2Props = {
   onClearTrashPostSelection: () => void;
   onRequestDeleteSelectedTrashPosts: () => void;
   onRequestEmptyTrash: () => void;
+  onRestoreTrashPostStub: (postId: string) => void;
+  onPermanentDeleteTrashPostStub: (postId: string) => void;
 };
 
 export default function Container2({
@@ -52,6 +54,8 @@ export default function Container2({
   onClearTrashPostSelection,
   onRequestDeleteSelectedTrashPosts,
   onRequestEmptyTrash,
+  onRestoreTrashPostStub,
+  onPermanentDeleteTrashPostStub,
 }: Container2Props) {
   const handleFavoriteToggle = () => {
     onFavoriteToggle();
@@ -106,6 +110,8 @@ export default function Container2({
                 post={post}
                 checked={selectedTrashPostIds.has(post.id)}
                 onCheckedChange={(checked) => onToggleTrashPostSelection(post.id, checked)}
+                onRestore={onRestoreTrashPostStub}
+                onPermanentDelete={onPermanentDeleteTrashPostStub}
               />
             ))
           : posts.map((post) => (
