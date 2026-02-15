@@ -19,10 +19,10 @@ describe("TrashBulkActions", () => {
       />
     );
 
-    expect(screen.getByText("表示されている投稿を選択")).toBeInTheDocument();
+    expect(screen.getByText("表示中の投稿を選択")).toBeInTheDocument();
     expect(screen.queryByText("0件選択中")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("checkbox", { name: "表示されている投稿を選択" }));
+    await user.click(screen.getByRole("checkbox", { name: "表示中の投稿を選択" }));
 
     expect(onToggleSelectAll).toHaveBeenCalledTimes(1);
   });
@@ -39,7 +39,7 @@ describe("TrashBulkActions", () => {
       />
     );
 
-    expect(screen.getByText("チェックを外す")).toBeInTheDocument();
+    expect(screen.getByText("選択を解除")).toBeInTheDocument();
     expect(screen.getByText("2件選択中")).toBeInTheDocument();
   });
 

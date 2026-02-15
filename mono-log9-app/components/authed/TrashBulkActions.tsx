@@ -26,10 +26,10 @@ export default function TrashBulkActions({
         <Checkbox
           checked={hasSelection}
           disabled={!hasTrashPosts}
-          aria-label={hasSelection ? "チェックを外す" : "表示されている投稿を選択"}
+          aria-label={hasSelection ? "選択を解除" : "表示中の投稿を選択"}
           onCheckedChange={onToggleSelectAll}
         />
-        <span>{hasSelection ? "チェックを外す" : "表示されている投稿を選択"}</span>
+        <span>{hasSelection ? "選択を解除" : "表示中の投稿を選択"}</span>
       </label>
 
       {hasSelection && <p className="text-sm text-foreground/80">{selectedCount}件選択中</p>}

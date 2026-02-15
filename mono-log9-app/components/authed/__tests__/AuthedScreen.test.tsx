@@ -108,7 +108,7 @@ describe("AuthedScreen", () => {
 
     await user.click(screen.getByRole("button", { name: "ごみ箱" }));
 
-    expect(screen.getByText("表示されている投稿を選択")).toBeInTheDocument();
+    expect(screen.getByText("表示中の投稿を選択")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "選択した投稿を削除" })).toBeDisabled();
 
     await user.click(screen.getByRole("checkbox", { name: "trash-001を選択" }));
@@ -124,15 +124,15 @@ describe("AuthedScreen", () => {
 
     await user.click(screen.getByRole("button", { name: "ごみ箱" }));
 
-    await user.click(screen.getByRole("checkbox", { name: "表示されている投稿を選択" }));
+    await user.click(screen.getByRole("checkbox", { name: "表示中の投稿を選択" }));
 
     expect(screen.getByText("3件選択中")).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "チェックを外す" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "選択を解除" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("checkbox", { name: "チェックを外す" }));
+    await user.click(screen.getByRole("checkbox", { name: "選択を解除" }));
 
     expect(screen.queryByText("3件選択中")).not.toBeInTheDocument();
-    expect(screen.getByText("表示されている投稿を選択")).toBeInTheDocument();
+    expect(screen.getByText("表示中の投稿を選択")).toBeInTheDocument();
   });
 
   it("opens selected-delete confirmation dialog and shows stub toast on confirm", async () => {
@@ -181,7 +181,7 @@ describe("AuthedScreen", () => {
     await user.click(screen.getByRole("button", { name: "ごみ箱" }));
 
     expect(screen.queryByText("1件選択中")).not.toBeInTheDocument();
-    expect(screen.getByText("表示されている投稿を選択")).toBeInTheDocument();
+    expect(screen.getByText("表示中の投稿を選択")).toBeInTheDocument();
   });
 
   it("opens inline memo edit and returns to normal view on cancel", async () => {
