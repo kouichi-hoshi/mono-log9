@@ -2,13 +2,33 @@ import { render, screen, within } from "@testing-library/react";
 
 import PostCard from "@/components/authed/PostCard";
 import type { StubPost } from "@/components/authed/stubs";
+import { sanitizeRichHtml } from "@/lib/sanitizeRichHtml";
+
+jest.mock("@/lib/sanitizeRichHtml", () => {
+  const actual = jest.requireActual("@/lib/sanitizeRichHtml");
+  return {
+    ...actual,
+    sanitizeRichHtml: jest.fn(actual.sanitizeRichHtml),
+  };
+});
 
 jest.mock("sonner", () => {
   const toast = Object.assign(jest.fn(), { error: jest.fn() });
   return { toast };
 });
 
+const actualSanitizeRichHtml = (
+  jest.requireActual("@/lib/sanitizeRichHtml") as typeof import("@/lib/sanitizeRichHtml")
+).sanitizeRichHtml;
+
+const sanitizeRichHtmlMock = sanitizeRichHtml as jest.MockedFunction<typeof sanitizeRichHtml>;
+
 describe("PostCard", () => {
+  beforeEach(() => {
+    sanitizeRichHtmlMock.mockReset();
+    sanitizeRichHtmlMock.mockImplementation(actualSanitizeRichHtml);
+  });
+
   it("renders sanitized html for note body", () => {
     const post: StubPost = {
       id: "note-001",
@@ -85,5 +105,29 @@ describe("PostCard", () => {
     expect(content).toHaveTextContent("箇条書き2");
     expect(content.querySelector(".md-content")).toBeNull();
     expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+  });
+
+  it("renders empty safe output when sanitizer returns empty string", () => {
+    sanitizeRichHtmlMock.mockReturnValue("");
+    const post: StubPost = {
+      id: "note-004",
+      mode: "note",
+      content: '<script>alert("xss")</script><h2>見出し</h2>',
+      createdAt: "2026-02-15 12:00",
+      favorite: false,
+    };
+
+    render(
+      <PostCard
+        post={post}
+        onToggleFavorite={jest.fn()}
+        onEdit={jest.fn()}
+      />
+    );
+
+    const content = screen.getByTestId("post-content");
+    expect(content.querySelector(".md-content")?.innerHTML).toBe("");
+    expect(within(content).queryByRole("heading", { level: 2, name: "見出し" })).not.toBeInTheDocument();
+    expect(content.querySelector("script")).toBeNull();
   });
 });

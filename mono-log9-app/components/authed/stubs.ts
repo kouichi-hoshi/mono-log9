@@ -10,6 +10,15 @@ export type StubPost = {
   favorite: boolean;
 };
 
+export type StubTrashPost = {
+  id: string;
+  mode: PostMode;
+  title?: string;
+  content: string;
+  createdAt: string;
+  trashedAt: string;
+};
+
 export type StubUser = {
   name: string;
   handle: string;
@@ -132,5 +141,30 @@ export const stubPosts: StubPost[] = [
     content: "メモ: 早寝する（23時まで）",
     createdAt: "2026-02-01 23:00",
     favorite: false,
+  },
+];
+
+export const stubTrashPosts: StubTrashPost[] = [
+  {
+    id: "trash-001",
+    mode: "memo",
+    content: "破棄候補メモ: 先週の打ち合わせメモ",
+    createdAt: "2026-01-30 16:20",
+    trashedAt: "2026-02-08 12:41",
+  },
+  {
+    id: "trash-002",
+    mode: "note",
+    title: "古い設計メモ",
+    content: "旧バージョンの設計メモ",
+    createdAt: "2026-01-28 09:10",
+    trashedAt: "2026-02-08 10:05",
+  },
+  {
+    id: "trash-003",
+    mode: "memo",
+    content: "削除予定: 一時メモ",
+    createdAt: "2026-01-25 20:02",
+    trashedAt: "2026-02-07 19:55",
   },
 ];

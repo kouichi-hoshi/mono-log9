@@ -7,7 +7,14 @@ import Container1 from "@/components/authed/Container1";
 import Container2 from "@/components/authed/Container2";
 import HeaderPostArea from "@/components/authed/HeaderPostArea";
 import NoteComposerModal from "@/components/authed/NoteComposerModal";
-import { stubPosts, stubUser, type StubPost, type ViewMode } from "@/components/authed/stubs";
+import {
+  stubPosts,
+  stubTrashPosts,
+  stubUser,
+  type StubPost,
+  type StubTrashPost,
+  type ViewMode,
+} from "@/components/authed/stubs";
 import type { NoteDraft } from "@/components/authed/types";
 
 type AuthedScreenProps = {
@@ -15,12 +22,14 @@ type AuthedScreenProps = {
 };
 
 export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
+  const [view, setView] = React.useState<"list" | "trash">("list");
   const [mode, setMode] = React.useState<ViewMode>("memo");
   const [favoriteOnlyByMode, setFavoriteOnlyByMode] = React.useState<Record<ViewMode, boolean>>({
     memo: false,
     note: false,
   });
   const [posts, setPosts] = React.useState<StubPost[]>(() => stubPosts);
+  const [trashPosts] = React.useState<StubTrashPost[]>(() => stubTrashPosts);
 
   const [memoDraft, setMemoDraft] = React.useState("");
   const [editingMemoPostId, setEditingMemoPostId] = React.useState<string | null>(null);
@@ -53,6 +62,15 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       [mode]: !current[mode],
     }));
   }, [mode]);
+
+  const handleModeChange = React.useCallback((nextMode: ViewMode) => {
+    setMode(nextMode);
+    setView("list");
+  }, []);
+
+  const handleTrashClick = React.useCallback(() => {
+    setView((current) => (current === "trash" ? current : "trash"));
+  }, []);
 
   const handleToggleFavorite = React.useCallback((postId: string) => {
     setPosts((current) =>
@@ -129,27 +147,33 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
             <Container1
               user={stubUser}
               mode={mode}
+              view={view}
               logoutUrl={logoutUrl}
-              onModeChange={setMode}
+              onModeChange={handleModeChange}
+              onTrashClick={handleTrashClick}
             />
           </div>
         </div>
       </header>
-      <section className="mx-auto w-full max-w-4xl px-4 py-4 md:px-6">
-        <HeaderPostArea
-          viewMode={mode}
-          onNoteComposeClick={handleOpenNoteCreate}
-          memoDraft={memoDraft}
-          onMemoDraftChange={setMemoDraft}
-          onMemoSaveStub={handleMemoSaveStub}
-        />
-      </section>
+      {view === "list" && (
+        <section className="mx-auto w-full max-w-4xl px-4 py-4 md:px-6">
+          <HeaderPostArea
+            viewMode={mode}
+            onNoteComposeClick={handleOpenNoteCreate}
+            memoDraft={memoDraft}
+            onMemoDraftChange={setMemoDraft}
+            onMemoSaveStub={handleMemoSaveStub}
+          />
+        </section>
+      )}
       <main className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6 md:py-10">
         <article>
           <Container2
             mode={mode}
+            isTrashView={view === "trash"}
             favoriteOnly={favoriteOnly}
             posts={filteredPosts}
+            trashPosts={trashPosts}
             onFavoriteToggle={handleFavoriteFilterToggle}
             onToggleFavorite={handleToggleFavorite}
             onEdit={handleEdit}
