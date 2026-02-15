@@ -21,3 +21,34 @@ class ResizeObserverMock {
 }
 
 global.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
+
+if (!HTMLElement.prototype.getClientRects) {
+  Object.defineProperty(HTMLElement.prototype, "getClientRects", {
+    configurable: true,
+    value: () => [document.body.getBoundingClientRect()],
+  });
+}
+
+if (!HTMLElement.prototype.getBoundingClientRect) {
+  Object.defineProperty(HTMLElement.prototype, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      toJSON: () => ({}),
+    }),
+  });
+}
+
+if (!document.elementFromPoint) {
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: () => document.body,
+  });
+}

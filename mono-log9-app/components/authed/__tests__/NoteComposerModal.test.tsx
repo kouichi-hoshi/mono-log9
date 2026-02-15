@@ -64,4 +64,5 @@ describe("NoteComposerModal", () => {
       expect(onSaveStub).toHaveBeenCalledTimes(1);
     });
   });
+
 });

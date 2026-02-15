@@ -24,3 +24,72 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.tiptap,
+.md-content {
+  line-height: 1.7;
+}
+
+.tiptap h2,
+.md-content h2 {
+  margin: 1rem 0 0.5rem;
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.tiptap h3,
+.md-content h3 {
+  margin: 0.9rem 0 0.4rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.tiptap h4,
+.md-content h4 {
+  margin: 0.8rem 0 0.3rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.tiptap p,
+.md-content p {
+  margin: 0.5rem 0;
+}
+
+.tiptap ul,
+.tiptap ol,
+.md-content ul,
+.md-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.4rem;
+}
+
+.tiptap ul,
+.md-content ul {
+  list-style: disc;
+}
+
+.tiptap ol,
+.md-content ol {
+  list-style: decimal;
+}
+
+.tiptap strong,
+.md-content strong {
+  font-weight: 700;
+}
+
+.tiptap a,
+.md-content a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tiptap a:hover,
+.md-content a:hover {
+  color: #1d4ed8;
+}

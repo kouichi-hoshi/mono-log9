@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import MemoEditor from "@/components/authed/MemoEditor";
 import { Button } from "@/components/ui/button";
 import type { StubPost } from "@/components/authed/stubs";
+import { sanitizeRichHtml } from "@/lib/sanitizeRichHtml";
 import { cn } from "@/lib/utils";
 
 type PostCardProps = {
@@ -34,6 +35,11 @@ export default function PostCard({
   const isNote = post.mode === "note";
   const noteHasTitle = isNote && Boolean(post.title?.trim());
   const displayContent = noteHasTitle ? post.title ?? "" : post.content;
+  const sanitizedNoteHtml = React.useMemo(() => sanitizeRichHtml(post.content), [post.content]);
+  const hasRichHtml = React.useMemo(
+    () => /<(h2|h3|h4|p|ul|ol|li|strong|a|br)(\s|>)/i.test(post.content),
+    [post.content]
+  );
 
   const handleFavorite = () => {
     onToggleFavorite(post.id);
@@ -58,12 +64,25 @@ export default function PostCard({
     <article className="rounded-lg border border-foreground/10 p-4 shadow-sm">
       {isNote && <div className="mb-3 text-xs text-foreground/60">{post.createdAt}</div>}
       <div
+        data-testid="post-content"
         className={cn(
-          "whitespace-pre-wrap text-sm leading-relaxed",
+          "text-sm leading-relaxed",
+          !isNote && "whitespace-pre-wrap",
           isNote && !expanded && !noteHasTitle && "max-h-48 overflow-hidden"
         )}
       >
-        {displayContent}
+        {isNote && !noteHasTitle ? (
+          hasRichHtml ? (
+            <div
+              className="md-content"
+              dangerouslySetInnerHTML={{ __html: sanitizedNoteHtml }}
+            />
+          ) : (
+            <div className="whitespace-pre-wrap">{post.content}</div>
+          )
+        ) : (
+          displayContent
+        )}
       </div>
 
       {isNote && !noteHasTitle && (

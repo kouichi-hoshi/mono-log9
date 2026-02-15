@@ -4,9 +4,34 @@ import * as React from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import type { JSONContent } from "@tiptap/core";
+import {
+  Extension,
+  textblockTypeInputRule,
+  type JSONContent,
+} from "@tiptap/core";
 
+import LinkDialog from "@/components/authed/LinkDialog";
+import NoteToolbar from "@/components/authed/NoteToolbar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+
+const HeadingShortcutExtension = Extension.create({
+  name: "headingShortcutExtension",
+  addInputRules() {
+    const headingType = this.editor.schema.nodes.heading;
+
+    if (!headingType) {
+      return [];
+    }
+
+    return [
+      textblockTypeInputRule({
+        find: /^(#)\s$/,
+        type: headingType,
+        getAttributes: { level: 2 },
+      }),
+    ];
+  },
+});
 
 type NoteEditorProps = {
   title: string;
@@ -30,19 +55,32 @@ export default function NoteEditor({
   showValidationError = false,
   onClearValidationError,
 }: NoteEditorProps) {
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = React.useState(false);
+  const [showLinkSelectionError, setShowLinkSelectionError] = React.useState(false);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        heading: {
+          levels: [2, 3, 4],
+        },
+        link: {
+          openOnClick: false,
+          autolink: true,
+          linkOnPaste: true,
+        },
+      }),
       Placeholder.configure({
         placeholder: "ノートを書く",
       }),
+      HeadingShortcutExtension,
     ],
     content,
     editorProps: {
       attributes: {
         class:
-          "min-h-56 rounded-md border border-foreground/10 bg-background px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-foreground/20",
+          "tiptap min-h-56 rounded-md border border-foreground/10 bg-background px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-foreground/20",
         "aria-label": "ノート本文",
         "data-testid": "note-editor-input",
       },
@@ -53,8 +91,13 @@ export default function NoteEditor({
         contentJson: nextEditor.getJSON(),
         plainText: nextEditor.getText(),
       });
+
       if (showValidationError) {
         onClearValidationError?.();
+      }
+
+      if (showLinkSelectionError) {
+        setShowLinkSelectionError(false);
       }
     },
   });
@@ -81,6 +124,49 @@ export default function NoteEditor({
     });
   }, [editor, onContentStateChange]);
 
+  const handleLinkClick = React.useCallback(() => {
+    if (!editor) {
+      return;
+    }
+
+    if (editor.state.selection.empty) {
+      setShowLinkSelectionError(true);
+      return;
+    }
+
+    setShowLinkSelectionError(false);
+    setIsLinkDialogOpen(true);
+  }, [editor]);
+
+  const handleUnlinkClick = React.useCallback(() => {
+    if (!editor) {
+      return;
+    }
+
+    editor.chain().focus().extendMarkRange("link").unsetLink().run();
+    setShowLinkSelectionError(false);
+  }, [editor]);
+
+  const handleLinkSubmit = React.useCallback(
+    (url: string) => {
+      if (!editor) {
+        return;
+      }
+
+      editor
+        .chain()
+        .focus()
+        .extendMarkRange("link")
+        .setLink({
+          href: url,
+          target: "_blank",
+          rel: "noopener noreferrer",
+        })
+        .run();
+    },
+    [editor]
+  );
+
   return (
     <div className="space-y-3">
       <input
@@ -92,7 +178,25 @@ export default function NoteEditor({
         className="w-full rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
       />
 
+      <NoteToolbar
+        editor={editor}
+        onLinkClick={handleLinkClick}
+        onUnlinkClick={handleUnlinkClick}
+      />
+
       <EditorContent editor={editor} />
+
+      <LinkDialog
+        open={isLinkDialogOpen}
+        onOpenChange={setIsLinkDialogOpen}
+        onSubmit={handleLinkSubmit}
+      />
+
+      {showLinkSelectionError && (
+        <Alert>
+          <AlertDescription>リンクにするテキストを選択してください</AlertDescription>
+        </Alert>
+      )}
 
       {showValidationError && (
         <Alert>
