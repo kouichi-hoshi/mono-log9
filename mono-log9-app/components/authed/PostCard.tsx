@@ -4,6 +4,7 @@ import * as React from "react";
 import { PencilLine, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import MemoEditor from "@/components/authed/MemoEditor";
 import { Button } from "@/components/ui/button";
 import type { StubPost } from "@/components/authed/stubs";
 import { cn } from "@/lib/utils";
@@ -11,32 +12,61 @@ import { cn } from "@/lib/utils";
 type PostCardProps = {
   post: StubPost;
   onToggleFavorite: (postId: string) => void;
+  onEdit: (postId: string) => void;
+  isMemoEditing?: boolean;
+  memoEditValue?: string;
+  onMemoEditValueChange?: (nextValue: string) => void;
+  onCancelMemoEdit?: () => void;
+  onSaveMemoEditStub?: (value: string) => void;
 };
 
-export default function PostCard({ post, onToggleFavorite }: PostCardProps) {
+export default function PostCard({
+  post,
+  onToggleFavorite,
+  onEdit,
+  isMemoEditing = false,
+  memoEditValue = "",
+  onMemoEditValueChange,
+  onCancelMemoEdit,
+  onSaveMemoEditStub,
+}: PostCardProps) {
   const [expanded, setExpanded] = React.useState(false);
   const isNote = post.mode === "note";
+  const noteHasTitle = isNote && Boolean(post.title?.trim());
+  const displayContent = noteHasTitle ? post.title ?? "" : post.content;
 
   const handleFavorite = () => {
     onToggleFavorite(post.id);
     toast("未実装です");
   };
 
+  if (!isNote && isMemoEditing) {
+    return (
+      <article className="rounded-lg border border-foreground/10 p-4 shadow-sm">
+        <MemoEditor
+          value={memoEditValue}
+          onValueChange={(nextValue) => onMemoEditValueChange?.(nextValue)}
+          isEditing
+          onCancel={onCancelMemoEdit}
+          onSave={(value) => onSaveMemoEditStub?.(value)}
+        />
+      </article>
+    );
+  }
+
   return (
     <article className="rounded-lg border border-foreground/10 p-4 shadow-sm">
-      {isNote && (
-        <div className="mb-3 text-xs text-foreground/60">{post.createdAt}</div>
-      )}
+      {isNote && <div className="mb-3 text-xs text-foreground/60">{post.createdAt}</div>}
       <div
         className={cn(
           "whitespace-pre-wrap text-sm leading-relaxed",
-          isNote && !expanded && "max-h-48 overflow-hidden"
+          isNote && !expanded && !noteHasTitle && "max-h-48 overflow-hidden"
         )}
       >
-        {post.content}
+        {displayContent}
       </div>
 
-      {isNote && (
+      {isNote && !noteHasTitle && (
         <button
           type="button"
           onClick={() => setExpanded((current) => !current)}
@@ -56,12 +86,7 @@ export default function PostCard({ post, onToggleFavorite }: PostCardProps) {
           />
           お気に入り
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => toast("未実装です")}
-        >
+        <Button type="button" variant="ghost" size="sm" onClick={() => onEdit(post.id)}>
           <PencilLine className="h-4 w-4 text-foreground/60" />
           編集
         </Button>

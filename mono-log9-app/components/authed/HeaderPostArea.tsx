@@ -1,6 +1,6 @@
 "use client";
 
-import PostEditor from "@/components/authed/PostEditor";
+import MemoEditor from "@/components/authed/MemoEditor";
 import type { ViewMode } from "@/components/authed/stubs";
 import { Button } from "@/components/ui/button";
 import { PencilLine } from "lucide-react";
@@ -8,9 +8,18 @@ import { PencilLine } from "lucide-react";
 type HeaderPostAreaProps = {
   viewMode: ViewMode;
   onNoteComposeClick: () => void;
+  memoDraft: string;
+  onMemoDraftChange: (nextValue: string) => void;
+  onMemoSaveStub: (value: string) => void;
 };
 
-export default function HeaderPostArea({ viewMode, onNoteComposeClick }: HeaderPostAreaProps) {
+export default function HeaderPostArea({
+  viewMode,
+  onNoteComposeClick,
+  memoDraft,
+  onMemoDraftChange,
+  onMemoSaveStub,
+}: HeaderPostAreaProps) {
   if (viewMode === "note") {
     return (
       <Button
@@ -28,5 +37,7 @@ export default function HeaderPostArea({ viewMode, onNoteComposeClick }: HeaderP
     );
   }
 
-  return <PostEditor mode="memo" />;
+  return (
+    <MemoEditor value={memoDraft} onValueChange={onMemoDraftChange} onSave={onMemoSaveStub} />
+  );
 }

@@ -14,6 +14,12 @@ type Container2Props = {
   posts: StubPost[];
   onFavoriteToggle: () => void;
   onToggleFavorite: (postId: string) => void;
+  onEdit: (postId: string) => void;
+  editingMemoPostId: string | null;
+  editingMemoValue: string;
+  onMemoEditValueChange: (nextValue: string) => void;
+  onCancelMemoEdit: () => void;
+  onSaveMemoEditStub: (postId: string, value: string) => void;
 };
 
 export default function Container2({
@@ -22,6 +28,12 @@ export default function Container2({
   posts,
   onFavoriteToggle,
   onToggleFavorite,
+  onEdit,
+  editingMemoPostId,
+  editingMemoValue,
+  onMemoEditValueChange,
+  onCancelMemoEdit,
+  onSaveMemoEditStub,
 }: Container2Props) {
   const handleFavoriteToggle = () => {
     onFavoriteToggle();
@@ -49,7 +61,17 @@ export default function Container2({
 
       <div className="space-y-4">
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} onToggleFavorite={onToggleFavorite} />
+          <PostCard
+            key={post.id}
+            post={post}
+            onToggleFavorite={onToggleFavorite}
+            onEdit={onEdit}
+            isMemoEditing={post.mode === "memo" && editingMemoPostId === post.id}
+            memoEditValue={post.mode === "memo" && editingMemoPostId === post.id ? editingMemoValue : ""}
+            onMemoEditValueChange={onMemoEditValueChange}
+            onCancelMemoEdit={onCancelMemoEdit}
+            onSaveMemoEditStub={(value) => onSaveMemoEditStub(post.id, value)}
+          />
         ))}
       </div>
 

@@ -4,6 +4,7 @@ export type ViewMode = PostMode;
 export type StubPost = {
   id: string;
   mode: PostMode;
+  title?: string;
   content: string;
   createdAt: string;
   favorite: boolean;
@@ -51,6 +52,7 @@ export const stubPosts: StubPost[] = [
   {
     id: "post-004",
     mode: "note",
+    title: "モノログのUIメモ",
     content:
       "## モノログのUIメモ\n" +
       "コンテナ1は固定で、コンテナ2はスクロール。\n" +
