@@ -2,6 +2,7 @@
 
 import LoadingStates from "@/components/authed/LoadingStates";
 import PostCard from "@/components/authed/PostCard";
+import TrashBulkActions from "@/components/authed/TrashBulkActions";
 import TrashPostCard from "@/components/authed/TrashPostCard";
 import { Button } from "@/components/ui/button";
 import type { StubPost, StubTrashPost, ViewMode } from "@/components/authed/stubs";
@@ -23,6 +24,12 @@ type Container2Props = {
   onMemoEditValueChange: (nextValue: string) => void;
   onCancelMemoEdit: () => void;
   onSaveMemoEditStub: (postId: string, value: string) => void;
+  selectedTrashPostIds: Set<string>;
+  onToggleTrashPostSelection: (postId: string, checked: boolean) => void;
+  onSelectAllVisibleTrashPosts: () => void;
+  onClearTrashPostSelection: () => void;
+  onRequestDeleteSelectedTrashPosts: () => void;
+  onRequestEmptyTrash: () => void;
 };
 
 export default function Container2({
@@ -39,10 +46,26 @@ export default function Container2({
   onMemoEditValueChange,
   onCancelMemoEdit,
   onSaveMemoEditStub,
+  selectedTrashPostIds,
+  onToggleTrashPostSelection,
+  onSelectAllVisibleTrashPosts,
+  onClearTrashPostSelection,
+  onRequestDeleteSelectedTrashPosts,
+  onRequestEmptyTrash,
 }: Container2Props) {
   const handleFavoriteToggle = () => {
     onFavoriteToggle();
     toast("未実装です");
+  };
+
+  const hasSelection = selectedTrashPostIds.size > 0;
+  const handleToggleSelectAll = () => {
+    if (hasSelection) {
+      onClearTrashPostSelection();
+      return;
+    }
+
+    onSelectAllVisibleTrashPosts();
   };
 
   return (
@@ -64,9 +87,27 @@ export default function Container2({
         )}
       </div>
 
+      {isTrashView && (
+        <TrashBulkActions
+          hasSelection={hasSelection}
+          selectedCount={selectedTrashPostIds.size}
+          hasTrashPosts={trashPosts.length > 0}
+          onToggleSelectAll={handleToggleSelectAll}
+          onDeleteSelected={onRequestDeleteSelectedTrashPosts}
+          onEmptyTrash={onRequestEmptyTrash}
+        />
+      )}
+
       <div className="space-y-4">
         {isTrashView
-          ? trashPosts.map((post) => <TrashPostCard key={post.id} post={post} />)
+          ? trashPosts.map((post) => (
+              <TrashPostCard
+                key={post.id}
+                post={post}
+                checked={selectedTrashPostIds.has(post.id)}
+                onCheckedChange={(checked) => onToggleTrashPostSelection(post.id, checked)}
+              />
+            ))
           : posts.map((post) => (
               <PostCard
                 key={post.id}

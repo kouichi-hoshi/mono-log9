@@ -8,6 +8,16 @@ import Container2 from "@/components/authed/Container2";
 import HeaderPostArea from "@/components/authed/HeaderPostArea";
 import NoteComposerModal from "@/components/authed/NoteComposerModal";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   stubPosts,
   stubTrashPosts,
   stubUser,
@@ -39,6 +49,8 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const [noteModalMode, setNoteModalMode] = React.useState<"create" | "edit">("create");
   const [noteModalInitialTitle, setNoteModalInitialTitle] = React.useState("");
   const [noteModalInitialContent, setNoteModalInitialContent] = React.useState("");
+  const [selectedTrashPostIds, setSelectedTrashPostIds] = React.useState<Set<string>>(() => new Set());
+  const [deleteDialogMode, setDeleteDialogMode] = React.useState<"selected" | "all" | null>(null);
 
   const favoriteOnly = favoriteOnlyByMode[mode];
 
@@ -71,6 +83,12 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const handleTrashClick = React.useCallback(() => {
     setView((current) => (current === "trash" ? current : "trash"));
   }, []);
+
+  React.useEffect(() => {
+    if (view !== "trash") {
+      setSelectedTrashPostIds(new Set());
+    }
+  }, [view]);
 
   const handleToggleFavorite = React.useCallback((postId: string) => {
     setPosts((current) =>
@@ -138,6 +156,51 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     [noteModalMode]
   );
 
+  const handleToggleTrashPostSelection = React.useCallback((postId: string, checked: boolean) => {
+    setSelectedTrashPostIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(postId);
+      } else {
+        next.delete(postId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllVisibleTrashPosts = React.useCallback(() => {
+    setSelectedTrashPostIds(new Set(trashPosts.map((post) => post.id)));
+  }, [trashPosts]);
+
+  const handleClearTrashPostSelection = React.useCallback(() => {
+    setSelectedTrashPostIds(new Set());
+  }, []);
+
+  const handleRequestDeleteSelectedTrashPosts = React.useCallback(() => {
+    if (selectedTrashPostIds.size === 0) {
+      return;
+    }
+    setDeleteDialogMode("selected");
+  }, [selectedTrashPostIds]);
+
+  const handleRequestEmptyTrash = React.useCallback(() => {
+    if (trashPosts.length === 0) {
+      return;
+    }
+    setDeleteDialogMode("all");
+  }, [trashPosts.length]);
+
+  const handleConfirmDelete = React.useCallback(() => {
+    toast("未実装です");
+    setDeleteDialogMode(null);
+  }, []);
+
+  const handleDeleteDialogOpenChange = React.useCallback((open: boolean) => {
+    if (!open) {
+      setDeleteDialogMode(null);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0">
@@ -182,6 +245,12 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
             onMemoEditValueChange={setEditingMemoValue}
             onCancelMemoEdit={handleMemoEditCancel}
             onSaveMemoEditStub={handleMemoEditSaveStub}
+            selectedTrashPostIds={selectedTrashPostIds}
+            onToggleTrashPostSelection={handleToggleTrashPostSelection}
+            onSelectAllVisibleTrashPosts={handleSelectAllVisibleTrashPosts}
+            onClearTrashPostSelection={handleClearTrashPostSelection}
+            onRequestDeleteSelectedTrashPosts={handleRequestDeleteSelectedTrashPosts}
+            onRequestEmptyTrash={handleRequestEmptyTrash}
           />
         </article>
       </main>
@@ -193,6 +262,22 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
         initialContent={noteModalInitialContent}
         onSaveStub={handleNoteSaveStub}
       />
+      <AlertDialog open={deleteDialogMode !== null} onOpenChange={handleDeleteDialogOpenChange}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteDialogMode === "selected"
+                ? `${selectedTrashPostIds.size}件の投稿を完全に削除しますか?`
+                : "ごみ箱内のすべての投稿を完全に削除しますか?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>この操作は取り消せません</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete}>削除する</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <footer className="hidden">© Mono Log</footer>
     </div>
   );

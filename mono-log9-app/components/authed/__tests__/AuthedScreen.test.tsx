@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import AuthedScreen from "@/components/authed/AuthedScreen";
+import { toast } from "sonner";
 
 jest.mock("sonner", () => {
   const toast = Object.assign(jest.fn(), { error: jest.fn() });
@@ -9,6 +10,10 @@ jest.mock("sonner", () => {
 });
 
 describe("AuthedScreen", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it("switches to trash view and updates active button states", async () => {
     const user = userEvent.setup();
 
@@ -80,6 +85,89 @@ describe("AuthedScreen", () => {
     expect(screen.queryByRole("button", { name: "削除" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "復元" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "完全に削除" })).not.toBeInTheDocument();
+  });
+
+  it("shows bulk actions and updates selected count from row checkbox", async () => {
+    const user = userEvent.setup();
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
+
+    expect(screen.getByText("表示されている投稿を選択")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "選択した投稿を削除" })).toBeDisabled();
+
+    await user.click(screen.getByRole("checkbox", { name: "trash-001を選択" }));
+
+    expect(screen.getByText("1件選択中")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "選択した投稿を削除" })).toBeEnabled();
+  });
+
+  it("toggles all visible trash post selections", async () => {
+    const user = userEvent.setup();
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
+
+    await user.click(screen.getByRole("checkbox", { name: "表示されている投稿を選択" }));
+
+    expect(screen.getByText("3件選択中")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "チェックを外す" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "チェックを外す" }));
+
+    expect(screen.queryByText("3件選択中")).not.toBeInTheDocument();
+    expect(screen.getByText("表示されている投稿を選択")).toBeInTheDocument();
+  });
+
+  it("opens selected-delete confirmation dialog and shows stub toast on confirm", async () => {
+    const user = userEvent.setup();
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
+    await user.click(screen.getByRole("checkbox", { name: "trash-001を選択" }));
+    await user.click(screen.getByRole("button", { name: "選択した投稿を削除" }));
+
+    expect(screen.getByText("1件の投稿を完全に削除しますか?")).toBeInTheDocument();
+    expect(screen.getByText("この操作は取り消せません")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "削除する" }));
+
+    expect(toast).toHaveBeenCalledWith("未実装です");
+  });
+
+  it("opens empty-trash confirmation dialog and shows stub toast on confirm", async () => {
+    const user = userEvent.setup();
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
+    await user.click(screen.getByRole("button", { name: "ごみ箱を空にする" }));
+
+    expect(screen.getByText("ごみ箱内のすべての投稿を完全に削除しますか?")).toBeInTheDocument();
+    expect(screen.getByText("この操作は取り消せません")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "削除する" }));
+
+    expect(toast).toHaveBeenCalledWith("未実装です");
+  });
+
+  it("resets trash selections when leaving trash view", async () => {
+    const user = userEvent.setup();
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
+    await user.click(screen.getByRole("checkbox", { name: "trash-001を選択" }));
+    expect(screen.getByText("1件選択中")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "メモ" }));
+    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
+
+    expect(screen.queryByText("1件選択中")).not.toBeInTheDocument();
+    expect(screen.getByText("表示されている投稿を選択")).toBeInTheDocument();
   });
 
   it("opens inline memo edit and returns to normal view on cancel", async () => {
