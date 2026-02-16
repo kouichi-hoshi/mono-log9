@@ -9,90 +9,163 @@ jest.mock("sonner", () => {
   return { toast };
 });
 
+jest.mock("next/navigation", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+
+  const listeners = new Set<() => void>();
+  let currentQuery = "";
+
+  const notify = () => {
+    for (const listener of listeners) {
+      listener();
+    }
+  };
+
+  const toQueryString = (href: string) => {
+    const url = new URL(href, "http://localhost");
+    return url.search.startsWith("?") ? url.search.slice(1) : "";
+  };
+
+  const push = jest.fn((href: string) => {
+    currentQuery = toQueryString(href);
+    notify();
+  });
+
+  const replace = jest.fn((href: string) => {
+    currentQuery = toQueryString(href);
+    notify();
+  });
+
+  return {
+    useRouter: () => ({
+      push,
+      replace,
+    }),
+    useSearchParams: () => {
+      React.useSyncExternalStore(
+        (listener: () => void) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+        () => currentQuery
+      );
+
+      return new URLSearchParams(currentQuery);
+    },
+    __mockNavigation: {
+      setQuery(query: string) {
+        currentQuery = query;
+        notify();
+      },
+      getPushMock() {
+        return push;
+      },
+      getReplaceMock() {
+        return replace;
+      },
+      reset() {
+        currentQuery = "";
+        listeners.clear();
+        push.mockClear();
+        replace.mockClear();
+      },
+    },
+  };
+});
+
+type NavigationMock = {
+  __mockNavigation: {
+    setQuery: (query: string) => void;
+    getPushMock: () => jest.Mock;
+    getReplaceMock: () => jest.Mock;
+    reset: () => void;
+  };
+};
+
+function getNavigationMock() {
+  return jest.requireMock("next/navigation") as NavigationMock;
+}
+
 describe("AuthedScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    getNavigationMock().__mockNavigation.reset();
   });
 
-  it("switches to trash view and updates active button states", async () => {
-    const user = userEvent.setup();
+  it("replaces missing view query with view=memo on initial render", () => {
+    render(<AuthedScreen logoutUrl="/" />);
+
+    expect(getNavigationMock().__mockNavigation.getReplaceMock()).toHaveBeenCalledWith(
+      "/?view=memo"
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "メモ" })).toBeInTheDocument();
+  });
+
+  it("does not replace for already-valid query even when key order is non-canonical", () => {
+    getNavigationMock().__mockNavigation.setQuery("view=note&stubAuth=1&favoriteNote");
 
     render(<AuthedScreen logoutUrl="/" />);
 
-    expect(screen.getByRole("button", { name: "メモ" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "ノート" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "ごみ箱" })).toHaveAttribute("aria-pressed", "false");
+    expect(getNavigationMock().__mockNavigation.getReplaceMock()).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { level: 2, name: "ノート" })).toBeInTheDocument();
+  });
 
-    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
+  it("renders trash view from initial query", () => {
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
 
-    expect(screen.getByRole("button", { name: "メモ" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "ノート" })).toHaveAttribute("aria-pressed", "false");
+    render(<AuthedScreen logoutUrl="/" />);
+
+    expect(screen.getByRole("heading", { level: 2, name: "ごみ箱" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ごみ箱" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("heading", { level: 2, name: "ごみ箱" })).toBeInTheDocument();
   });
 
-  it("keeps trash view unchanged when trash button is clicked again", async () => {
-    const user = userEvent.setup();
+  it("renders note view and favorite active from initial query", () => {
+    getNavigationMock().__mockNavigation.setQuery("view=note&favoriteNote");
 
     render(<AuthedScreen logoutUrl="/" />);
 
-    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
-    expect(screen.getByRole("heading", { level: 2, name: "ごみ箱" })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
-    expect(screen.getByRole("heading", { level: 2, name: "ごみ箱" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "ノート" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ノート" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "お気に入り", pressed: true })).toBeInTheDocument();
   });
 
-  it("returns to note list when note button is clicked from trash view", async () => {
+  it("pushes next query while preserving unknown keys", async () => {
     const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("stubAuth=1&foo=bar&view=memo&favoriteMemo");
 
     render(<AuthedScreen logoutUrl="/" />);
 
-    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
     await user.click(screen.getByRole("button", { name: "ノート" }));
 
-    expect(screen.getByRole("button", { name: "メモ" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "ノート" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "ごみ箱" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("heading", { level: 2, name: "ノート" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ノートを書く" })).toBeInTheDocument();
-  });
-
-  it("returns to memo list when memo button is clicked from trash view", async () => {
-    const user = userEvent.setup();
-
-    render(<AuthedScreen logoutUrl="/" />);
-
-    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
-    await user.click(screen.getByRole("button", { name: "メモ" }));
-
-    expect(screen.getByRole("button", { name: "メモ" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "ノート" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "ごみ箱" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("heading", { level: 2, name: "メモ" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "保存する" })).toBeInTheDocument();
-  });
-
-  it("shows trash item action buttons in trash view", async () => {
-    const user = userEvent.setup();
-
-    render(<AuthedScreen logoutUrl="/" />);
+    expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenCalledWith(
+      "/?stubAuth=1&foo=bar&view=note&favoriteMemo="
+    );
 
     await user.click(screen.getByRole("button", { name: "ごみ箱" }));
 
-    expect(screen.queryByRole("button", { name: "お気に入り" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "編集" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "削除" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "復元" })).toHaveLength(3);
-    expect(screen.getAllByRole("button", { name: "完全に削除" })).toHaveLength(3);
+    expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenLastCalledWith(
+      "/?stubAuth=1&foo=bar&view=trash&favoriteMemo="
+    );
+  });
+
+  it("does not push on no-op view action", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    await user.click(screen.getByRole("button", { name: "ノート" }));
+
+    expect(getNavigationMock().__mockNavigation.getPushMock()).not.toHaveBeenCalled();
   });
 
   it("fires stub toast when clicking trash item action buttons", async () => {
     const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
 
     render(<AuthedScreen logoutUrl="/" />);
-
-    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
 
     await user.click(screen.getAllByRole("button", { name: "復元" })[0]);
     await user.click(screen.getAllByRole("button", { name: "完全に削除" })[0]);
@@ -103,10 +176,9 @@ describe("AuthedScreen", () => {
 
   it("shows bulk actions and updates selected count from row checkbox", async () => {
     const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
 
     render(<AuthedScreen logoutUrl="/" />);
-
-    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
 
     expect(screen.getByText("表示中の投稿を選択")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "選択した投稿を削除" })).toBeDisabled();
@@ -119,10 +191,9 @@ describe("AuthedScreen", () => {
 
   it("toggles all visible trash post selections", async () => {
     const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
 
     render(<AuthedScreen logoutUrl="/" />);
-
-    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
 
     await user.click(screen.getByRole("checkbox", { name: "表示中の投稿を選択" }));
 
@@ -137,10 +208,10 @@ describe("AuthedScreen", () => {
 
   it("opens selected-delete confirmation dialog and shows stub toast on confirm", async () => {
     const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
 
     render(<AuthedScreen logoutUrl="/" />);
 
-    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
     await user.click(screen.getByRole("checkbox", { name: "trash-001を選択" }));
     await user.click(screen.getByRole("button", { name: "選択した投稿を削除" }));
 
@@ -154,10 +225,10 @@ describe("AuthedScreen", () => {
 
   it("opens empty-trash confirmation dialog and shows stub toast on confirm", async () => {
     const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
 
     render(<AuthedScreen logoutUrl="/" />);
 
-    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
     await user.click(screen.getByRole("button", { name: "ごみ箱を空にする" }));
 
     expect(screen.getByText("ごみ箱内のすべての投稿を完全に削除しますか?")).toBeInTheDocument();
@@ -168,12 +239,12 @@ describe("AuthedScreen", () => {
     expect(toast).toHaveBeenCalledWith("未実装です");
   });
 
-  it("resets trash selections when leaving trash view", async () => {
+  it("resets trash selections when leaving and returning to trash view", async () => {
     const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
 
     render(<AuthedScreen logoutUrl="/" />);
 
-    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
     await user.click(screen.getByRole("checkbox", { name: "trash-001を選択" }));
     expect(screen.getByText("1件選択中")).toBeInTheDocument();
 
@@ -186,6 +257,7 @@ describe("AuthedScreen", () => {
 
   it("opens inline memo edit and returns to normal view on cancel", async () => {
     const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
 
     render(<AuthedScreen logoutUrl="/" />);
 
@@ -208,10 +280,9 @@ describe("AuthedScreen", () => {
 
   it("opens note edit modal from note card", async () => {
     const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
 
     render(<AuthedScreen logoutUrl="/" />);
-
-    await user.click(screen.getByRole("button", { name: "ノート" }));
 
     expect(screen.getByRole("button", { name: "ノートを書く" })).toBeInTheDocument();
 

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import Container1 from "@/components/authed/Container1";
@@ -26,18 +27,33 @@ import {
   type ViewMode,
 } from "@/components/authed/stubs";
 import type { NoteDraft } from "@/components/authed/types";
+import {
+  buildQueryForFavoriteToggle,
+  buildQueryForViewChange,
+  normalizeAuthedQuery,
+  toRootPath,
+} from "@/lib/authedQueryState";
 
 type AuthedScreenProps = {
   logoutUrl: string;
 };
 
 export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
-  const [view, setView] = React.useState<"list" | "trash">("list");
-  const [mode, setMode] = React.useState<ViewMode>("memo");
-  const [favoriteOnlyByMode, setFavoriteOnlyByMode] = React.useState<Record<ViewMode, boolean>>({
-    memo: false,
-    note: false,
-  });
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryString = searchParams.toString();
+  const normalizedQuery = React.useMemo(
+    () => normalizeAuthedQuery(queryString),
+    [queryString]
+  );
+  const isTrashView = normalizedQuery.state.view === "trash";
+  const mode: ViewMode = normalizedQuery.state.activeMode ?? "memo";
+  const favoriteOnly = isTrashView
+    ? false
+    : mode === "memo"
+      ? normalizedQuery.state.favoriteMemo
+      : normalizedQuery.state.favoriteNote;
+
   const [posts, setPosts] = React.useState<StubPost[]>(() => stubPosts);
   const [trashPosts] = React.useState<StubTrashPost[]>(() => stubTrashPosts);
 
@@ -51,8 +67,6 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const [noteModalInitialContent, setNoteModalInitialContent] = React.useState("");
   const [selectedTrashPostIds, setSelectedTrashPostIds] = React.useState<Set<string>>(() => new Set());
   const [deleteDialogMode, setDeleteDialogMode] = React.useState<"selected" | "all" | null>(null);
-
-  const favoriteOnly = favoriteOnlyByMode[mode];
 
   const filteredPosts = React.useMemo(() => {
     return posts.filter((post) => {
@@ -68,27 +82,46 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     });
   }, [favoriteOnly, mode, posts]);
 
+  React.useEffect(() => {
+    if (!normalizedQuery.changed) {
+      return;
+    }
+
+    router.replace(toRootPath(normalizedQuery.nextQuery));
+  }, [normalizedQuery.changed, normalizedQuery.nextQuery, router]);
+
   const handleFavoriteFilterToggle = React.useCallback(() => {
-    setFavoriteOnlyByMode((current) => ({
-      ...current,
-      [mode]: !current[mode],
-    }));
-  }, [mode]);
+    const next = buildQueryForFavoriteToggle(queryString);
+    if (!next.changed) {
+      return;
+    }
+
+    router.push(toRootPath(next.nextQuery));
+  }, [queryString, router]);
 
   const handleModeChange = React.useCallback((nextMode: ViewMode) => {
-    setMode(nextMode);
-    setView("list");
-  }, []);
+    const next = buildQueryForViewChange(queryString, nextMode);
+    if (!next.changed) {
+      return;
+    }
+
+    router.push(toRootPath(next.nextQuery));
+  }, [queryString, router]);
 
   const handleTrashClick = React.useCallback(() => {
-    setView((current) => (current === "trash" ? current : "trash"));
-  }, []);
+    const next = buildQueryForViewChange(queryString, "trash");
+    if (!next.changed) {
+      return;
+    }
+
+    router.push(toRootPath(next.nextQuery));
+  }, [queryString, router]);
 
   React.useEffect(() => {
-    if (view !== "trash") {
+    if (!isTrashView) {
       setSelectedTrashPostIds(new Set());
     }
-  }, [view]);
+  }, [isTrashView]);
 
   const handleToggleFavorite = React.useCallback((postId: string) => {
     setPosts((current) =>
@@ -220,7 +253,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
             <Container1
               user={stubUser}
               mode={mode}
-              view={view}
+              view={isTrashView ? "trash" : "list"}
               logoutUrl={logoutUrl}
               onModeChange={handleModeChange}
               onTrashClick={handleTrashClick}
@@ -228,7 +261,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
           </div>
         </div>
       </header>
-      {view === "list" && (
+      {!isTrashView && (
         <section className="mx-auto w-full max-w-4xl px-4 py-4 md:px-6">
           <HeaderPostArea
             viewMode={mode}
@@ -243,7 +276,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
         <article>
           <Container2
             mode={mode}
-            isTrashView={view === "trash"}
+            isTrashView={isTrashView}
             favoriteOnly={favoriteOnly}
             posts={filteredPosts}
             trashPosts={trashPosts}
