@@ -22,7 +22,7 @@ tags:
 - **dev-only** のデバッグスイッチとして `stubAuth=1` を扱う（仕様外のURL状態を恒久化しない）
 - 判定/ガードは **1箇所に集約** し、UIコンポーネントに散らさない
 - `NODE_ENV=test/production` では **必ず無効**（事故防止）
-- `stubAuth` 操作で `mode/view/favorite` などの他クエリを **破壊しない**
+- ログイン時の `stubAuth=1` 付与では、既存クエリ（例: `view/favoriteMemo/favoriteNote`）を **破壊しない**
 
 # 想定ファイル配置（案）
 
@@ -76,12 +76,12 @@ tags:
 
 # URL更新（ログイン/ログアウト）
 
-クエリの保持要件があるため、次の方針を守る:
+クエリ更新ルールとして、次の方針を守る:
 
 - 既存の `searchParams` をコピーして編集する
-- ログイン: `stubAuth=1` を set
-- ログアウト: `stubAuth` を delete
-- `mode/view/favorite` 等の他パラメータは保持する
+- ログイン: `stubAuth=1` を set（他クエリは保持）
+- ログアウト: URL パラメータを全削除して `/` へ遷移
+- ログイン中画面で `view/favoriteMemo/favoriteNote` を更新する際は、他クエリを保持する（`docs/specs/09.仕様書 URLクエリ状態管理.md`）
 
 （実装例: `new URLSearchParams(searchParams)` のような形で編集）
 
@@ -107,9 +107,8 @@ tags:
   - `/` は未ログイン画面
   - `/?stubAuth=1` でログイン中画面
   - ログイン操作で `stubAuth=1` が付与される（他クエリは保持）
-  - ログアウト操作で `stubAuth` が削除される（他クエリは保持）
+  - ログアウト操作で URL パラメータが全削除され `/` に戻る
 - `USE_STUB_AUTH` 未指定 or `false`
   - `/?stubAuth=1` でも未ログイン画面のまま
 - `NODE_ENV=test/production`
   - `USE_STUB_AUTH=true` 相当の設定があっても `/?stubAuth=1` は無効
-
