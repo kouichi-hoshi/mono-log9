@@ -31,15 +31,23 @@ export default function PostCard({
   onCancelMemoEdit,
   onSaveMemoEditStub,
 }: PostCardProps) {
+  const [hasHydrated, setHasHydrated] = React.useState(false);
   const [expanded, setExpanded] = React.useState(false);
   const isNote = post.mode === "note";
   const noteHasTitle = isNote && Boolean(post.title?.trim());
   const displayContent = noteHasTitle ? post.title ?? "" : post.content;
-  const sanitizedNoteHtml = React.useMemo(() => sanitizeRichHtml(post.content), [post.content]);
+  const sanitizedNoteHtml = React.useMemo(
+    () => (hasHydrated ? sanitizeRichHtml(post.content) : ""),
+    [hasHydrated, post.content]
+  );
   const hasRichHtml = React.useMemo(
     () => /<(h2|h3|h4|p|ul|ol|li|strong|a|br)(\s|>)/i.test(post.content),
     [post.content]
   );
+
+  React.useEffect(() => {
+    setHasHydrated(true);
+  }, []);
 
   const handleFavorite = () => {
     onToggleFavorite(post.id);
@@ -75,6 +83,7 @@ export default function PostCard({
           hasRichHtml ? (
             <div
               className="md-content"
+              suppressHydrationWarning
               dangerouslySetInnerHTML={{ __html: sanitizedNoteHtml }}
             />
           ) : (
