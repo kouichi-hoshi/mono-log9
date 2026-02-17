@@ -10,7 +10,7 @@ type HeaderPostAreaProps = {
   onNoteComposeClick: () => void;
   memoDraft: string;
   onMemoDraftChange: (nextValue: string) => void;
-  onMemoSaveStub: (value: string) => void;
+  onMemoSaveStub: (value: string) => Promise<boolean> | boolean;
 };
 
 export default function HeaderPostArea({

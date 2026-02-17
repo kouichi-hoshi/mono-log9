@@ -7,7 +7,6 @@ import NoteEditor from "@/components/authed/NoteEditor";
 
 function NoteEditorHarness() {
   const [title, setTitle] = React.useState("");
-  const [content, setContent] = React.useState("");
   const [state, setState] = React.useState<{ contentJson: JSONContent | null; plainText: string }>({
     contentJson: null,
     plainText: "",
@@ -18,11 +17,10 @@ function NoteEditorHarness() {
       <NoteEditor
         title={title}
         onTitleChange={setTitle}
-        content={content}
-        onContentChange={setContent}
+        contentJson={state.contentJson}
         onContentStateChange={setState}
       />
-      <output data-testid="content-html">{content}</output>
+      <output data-testid="content-json">{JSON.stringify(state.contentJson)}</output>
       <output data-testid="content-text">{state.plainText}</output>
     </>
   );

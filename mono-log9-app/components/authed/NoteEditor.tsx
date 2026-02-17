@@ -36,8 +36,7 @@ const HeadingShortcutExtension = Extension.create({
 type NoteEditorProps = {
   title: string;
   onTitleChange: (nextTitle: string) => void;
-  content: string;
-  onContentChange: (nextContent: string) => void;
+  contentJson: JSONContent | null;
   onContentStateChange: (nextState: {
     contentJson: JSONContent | null;
     plainText: string;
@@ -49,8 +48,7 @@ type NoteEditorProps = {
 export default function NoteEditor({
   title,
   onTitleChange,
-  content,
-  onContentChange,
+  contentJson,
   onContentStateChange,
   showValidationError = false,
   onClearValidationError,
@@ -76,7 +74,7 @@ export default function NoteEditor({
       }),
       HeadingShortcutExtension,
     ],
-    content,
+    content: contentJson ?? "",
     editorProps: {
       attributes: {
         class:
@@ -86,7 +84,6 @@ export default function NoteEditor({
       },
     },
     onUpdate: ({ editor: nextEditor }) => {
-      onContentChange(nextEditor.getHTML());
       onContentStateChange({
         contentJson: nextEditor.getJSON(),
         plainText: nextEditor.getText(),
@@ -107,11 +104,12 @@ export default function NoteEditor({
       return;
     }
 
-    const current = editor.getHTML();
-    if (content !== current) {
-      editor.commands.setContent(content || "", { emitUpdate: false });
+    const current = editor.getJSON();
+    const next = contentJson ?? { type: "doc", content: [] };
+    if (JSON.stringify(current) !== JSON.stringify(next)) {
+      editor.commands.setContent(next, { emitUpdate: false });
     }
-  }, [content, editor]);
+  }, [contentJson, editor]);
 
   React.useEffect(() => {
     if (!editor) {

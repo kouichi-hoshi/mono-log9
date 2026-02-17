@@ -19,7 +19,7 @@ export default function TrashPostCard({
   onRestore,
   onPermanentDelete,
 }: TrashPostCardProps) {
-  const body = post.mode === "note" && post.title?.trim() ? post.title : post.content;
+  const body = post.mode === "note" && post.title?.trim() ? post.title : post.contentText;
   const checkboxId = `trash-select-${post.id}`;
 
   return (

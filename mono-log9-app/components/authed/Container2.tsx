@@ -21,12 +21,13 @@ type Container2Props = {
   errorMessage: string | null;
   onFavoriteToggle: () => void;
   onToggleFavorite: (postId: string) => void;
+  onMoveToTrash: (postId: string) => void;
   onEdit: (postId: string) => void;
   editingMemoPostId: string | null;
   editingMemoValue: string;
   onMemoEditValueChange: (nextValue: string) => void;
   onCancelMemoEdit: () => void;
-  onSaveMemoEditStub: (postId: string, value: string) => void;
+  onSaveMemoEditStub: (postId: string, value: string) => Promise<boolean> | boolean;
   selectedTrashPostIds: Set<string>;
   onToggleTrashPostSelection: (postId: string, checked: boolean) => void;
   onSelectAllVisibleTrashPosts: () => void;
@@ -47,6 +48,7 @@ export default function Container2({
   errorMessage,
   onFavoriteToggle,
   onToggleFavorite,
+  onMoveToTrash,
   onEdit,
   editingMemoPostId,
   editingMemoValue,
@@ -119,6 +121,7 @@ export default function Container2({
                 key={post.id}
                 post={post}
                 onToggleFavorite={onToggleFavorite}
+                onMoveToTrash={onMoveToTrash}
                 onEdit={onEdit}
                 isMemoEditing={post.mode === "memo" && editingMemoPostId === post.id}
                 memoEditValue={post.mode === "memo" && editingMemoPostId === post.id ? editingMemoValue : ""}

@@ -60,8 +60,7 @@ describe("NoteEditor link commands", () => {
       <NoteEditor
         title=""
         onTitleChange={jest.fn()}
-        content="<p>本文</p>"
-        onContentChange={jest.fn()}
+        contentJson={{ type: "doc", content: [] }}
         onContentStateChange={jest.fn()}
       />
     );
@@ -90,8 +89,7 @@ describe("NoteEditor link commands", () => {
       <NoteEditor
         title=""
         onTitleChange={jest.fn()}
-        content="<p>本文</p>"
-        onContentChange={jest.fn()}
+        contentJson={{ type: "doc", content: [] }}
         onContentStateChange={jest.fn()}
       />
     );

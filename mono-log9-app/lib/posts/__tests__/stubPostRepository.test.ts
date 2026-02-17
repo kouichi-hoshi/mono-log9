@@ -1,27 +1,28 @@
-import { PostRepositoryError } from "@/lib/posts/errors";
+import { createDocFromPlainText, extractContentText } from "@/lib/posts/content";
 import {
   __resetStubPostRepositoryForTests,
   stubPostRepository,
 } from "@/lib/posts/repositories/stubPostRepository";
 
 describe("stubPostRepository", () => {
+  const mutableEnv = process.env as Record<string, string | undefined>;
   const originalNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
-    process.env.NODE_ENV = "development";
+    mutableEnv.NODE_ENV = "development";
     __resetStubPostRepositoryForTests();
   });
 
   afterAll(() => {
-    process.env.NODE_ENV = originalNodeEnv;
+    mutableEnv.NODE_ENV = originalNodeEnv;
   });
 
   it("rejects access outside development", async () => {
-    process.env.NODE_ENV = "test";
+    mutableEnv.NODE_ENV = "test";
 
     await expect(
       stubPostRepository.listPosts({ view: "memo", favoriteOnly: false, limit: 10 })
-    ).rejects.toMatchObject<PostRepositoryError>({ code: "FORBIDDEN" });
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("lists memo posts with cursor pagination", async () => {
@@ -81,7 +82,7 @@ describe("stubPostRepository", () => {
         limit: 10,
         cursor: "   ",
       })
-    ).rejects.toMatchObject<PostRepositoryError>({ code: "INVALID_CURSOR" });
+    ).rejects.toMatchObject({ code: "INVALID_CURSOR" });
 
     await expect(
       stubPostRepository.listPosts({
@@ -90,7 +91,7 @@ describe("stubPostRepository", () => {
         limit: 10,
         cursor: "post-999999",
       })
-    ).rejects.toMatchObject<PostRepositoryError>({ code: "INVALID_CURSOR" });
+    ).rejects.toMatchObject({ code: "INVALID_CURSOR" });
 
     await expect(
       stubPostRepository.listPosts({
@@ -99,56 +100,68 @@ describe("stubPostRepository", () => {
         limit: 10,
         cursor: "post-001",
       })
-    ).rejects.toMatchObject<PostRepositoryError>({ code: "INVALID_CURSOR" });
+    ).rejects.toMatchObject({ code: "INVALID_CURSOR" });
   });
 
   it("creates posts non-idempotently", async () => {
+    const firstContent = createDocFromPlainText("新規メモ");
     const first = await stubPostRepository.createPost({
       mode: "memo",
-      content: "新規メモ",
+      content: firstContent,
+      contentText: extractContentText(firstContent, "memo"),
     });
+    const secondContent = createDocFromPlainText("新規メモ");
     const second = await stubPostRepository.createPost({
       mode: "memo",
-      content: "新規メモ",
+      content: secondContent,
+      contentText: extractContentText(secondContent, "memo"),
     });
 
     expect(first.id).not.toBe(second.id);
-    expect(first.content).toBe("新規メモ");
-    expect(second.content).toBe("新規メモ");
+    expect(first.contentText).toBe("新規メモ");
+    expect(second.contentText).toBe("新規メモ");
   });
 
   it("enforces validation and NOT_FOUND on write operations", async () => {
     await expect(
+      stubPostRepository.createPost({
+        mode: "memo",
+        content: createDocFromPlainText("x"),
+        contentText: "y",
+      })
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    await expect(
       stubPostRepository.updatePost({
         postId: "invalid",
-        content: "x",
+        content: createDocFromPlainText("x"),
       })
-    ).rejects.toMatchObject<PostRepositoryError>({ code: "VALIDATION_ERROR" });
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
 
     await expect(
       stubPostRepository.updatePost({
         postId: "post-999",
-        content: "x",
+        content: createDocFromPlainText("x"),
       })
-    ).rejects.toMatchObject<PostRepositoryError>({ code: "NOT_FOUND" });
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
     await expect(
       stubPostRepository.setFavorite({
         postId: "post-001",
         favorite: "1" as unknown as boolean,
       })
-    ).rejects.toMatchObject<PostRepositoryError>({ code: "VALIDATION_ERROR" });
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
   });
 
   it("keeps update and setFavorite idempotent", async () => {
     const before = await stubPostRepository.updatePost({
       postId: "post-001",
-      content: "買い物メモ: 牛乳、パン、トマト",
+      content: createDocFromPlainText("買い物メモ: 牛乳、パン、トマト"),
       title: undefined,
     });
     const again = await stubPostRepository.updatePost({
       postId: "post-001",
-      content: "買い物メモ: 牛乳、パン、トマト",
+      content: createDocFromPlainText("買い物メモ: 牛乳、パン、トマト"),
       title: undefined,
     });
 

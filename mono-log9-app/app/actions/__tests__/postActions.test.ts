@@ -6,6 +6,7 @@ import {
   setFavoriteAction,
   updatePostAction,
 } from "@/app/actions/postActions";
+import { createDocFromPlainText } from "@/lib/posts/content";
 import { PostRepositoryError } from "@/lib/posts/errors";
 import { postRepository } from "@/lib/posts/postRepository";
 
@@ -76,7 +77,8 @@ describe("postActions", () => {
       id: "post-100",
       mode: "memo",
       title: undefined,
-      content: "a",
+      content: createDocFromPlainText("a"),
+      contentText: "a",
       favorite: false,
       createdAt: "2026-02-16 10:00",
     });
@@ -84,7 +86,8 @@ describe("postActions", () => {
       id: "post-100",
       mode: "memo",
       title: undefined,
-      content: "b",
+      content: createDocFromPlainText("b"),
+      contentText: "b",
       favorite: false,
       createdAt: "2026-02-16 10:00",
     });
@@ -92,11 +95,22 @@ describe("postActions", () => {
     getRepositoryMock().restoreFromTrash.mockResolvedValue(undefined);
 
     await expect(
-      createPostAction({ mode: "memo", content: "a" })
+      createPostAction({ mode: "memo", content: createDocFromPlainText("a") })
     ).resolves.toMatchObject({ ok: true });
+    expect(getRepositoryMock().createPost).toHaveBeenCalledWith({
+      mode: "memo",
+      title: undefined,
+      content: createDocFromPlainText("a"),
+      contentText: "a",
+    });
     await expect(
-      updatePostAction({ postId: "post-100", content: "b" })
+      updatePostAction({ postId: "post-100", title: "  b  ", content: createDocFromPlainText("b") })
     ).resolves.toMatchObject({ ok: true });
+    expect(getRepositoryMock().updatePost).toHaveBeenCalledWith({
+      postId: "post-100",
+      title: "b",
+      content: createDocFromPlainText("b"),
+    });
     await expect(moveToTrashAction({ postId: "post-100" })).resolves.toEqual({
       ok: true,
       data: null,
@@ -105,5 +119,24 @@ describe("postActions", () => {
       ok: true,
       data: null,
     });
+  });
+
+  it("returns VALIDATION_ERROR when create input schema is invalid before repository", async () => {
+    const result = await createPostAction({
+      mode: "note",
+      content: {
+        type: "doc",
+        content: [{ type: "text", text: "invalid root child" }],
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "入力内容に不備があります",
+      },
+    });
+    expect(getRepositoryMock().createPost).not.toHaveBeenCalled();
   });
 });

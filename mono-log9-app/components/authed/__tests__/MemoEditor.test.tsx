@@ -24,7 +24,7 @@ describe("MemoEditor", () => {
 
   it("calls save and clears input in create mode", async () => {
     const user = userEvent.setup();
-    const onSave = jest.fn();
+    const onSave = jest.fn().mockResolvedValue(true);
     const onValueChange = jest.fn();
 
     render(

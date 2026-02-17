@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import AuthedScreen from "@/components/authed/AuthedScreen";
+import { createDocFromPlainText, extractContentText } from "@/lib/posts/content";
 import type { ListPostsInput, PostRecord } from "@/lib/posts/types";
 import { toast } from "sonner";
 
@@ -11,8 +12,12 @@ jest.mock("sonner", () => {
 });
 
 jest.mock("@/app/actions/postActions", () => ({
+  createPostAction: jest.fn(),
   listPostsAction: jest.fn(),
+  moveToTrashAction: jest.fn(),
+  restoreFromTrashAction: jest.fn(),
   setFavoriteAction: jest.fn(),
+  updatePostAction: jest.fn(),
 }));
 
 jest.mock("next/navigation", () => {
@@ -95,8 +100,12 @@ function getNavigationMock() {
 }
 
 type PostActionsModule = {
+  createPostAction: jest.Mock;
   listPostsAction: jest.Mock;
+  moveToTrashAction: jest.Mock;
+  restoreFromTrashAction: jest.Mock;
   setFavoriteAction: jest.Mock;
+  updatePostAction: jest.Mock;
 };
 
 function getPostActionsMock() {
@@ -107,28 +116,45 @@ const basePosts: PostRecord[] = [
   {
     id: "post-001",
     mode: "memo",
-    content: "買い物メモ: 牛乳、パン、トマト",
+    content: createDocFromPlainText("買い物メモ: 牛乳、パン、トマト"),
+    contentText: "買い物メモ: 牛乳、パン、トマト",
     createdAt: "2026-02-08 09:12",
     favorite: false,
   },
   {
     id: "post-002",
     mode: "note",
-    content: "<h2>今日の学び</h2><p>内容</p>",
+    content: {
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "今日の学び" }],
+        },
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "内容" }],
+        },
+      ],
+    },
+    contentText: "今日の学び\n\n内容",
     createdAt: "2026-02-07 21:05",
     favorite: true,
   },
   {
     id: "post-003",
     mode: "memo",
-    content: "打ち合わせは金曜 14:00 から",
+    content: createDocFromPlainText("打ち合わせは金曜 14:00 から"),
+    contentText: "打ち合わせは金曜 14:00 から",
     createdAt: "2026-02-07 10:45",
     favorite: false,
   },
   {
     id: "trash-001",
     mode: "memo",
-    content: "破棄候補メモ: 先週の打ち合わせメモ",
+    content: createDocFromPlainText("破棄候補メモ: 先週の打ち合わせメモ"),
+    contentText: "破棄候補メモ: 先週の打ち合わせメモ",
     createdAt: "2026-01-30 16:20",
     trashedAt: "2026-02-08 12:41",
     favorite: false,
@@ -137,7 +163,8 @@ const basePosts: PostRecord[] = [
     id: "trash-002",
     mode: "note",
     title: "古い設計メモ",
-    content: "旧バージョンの設計メモ",
+    content: createDocFromPlainText("旧バージョンの設計メモ"),
+    contentText: "旧バージョンの設計メモ",
     createdAt: "2026-01-28 09:10",
     trashedAt: "2026-02-08 10:05",
     favorite: false,
@@ -145,7 +172,8 @@ const basePosts: PostRecord[] = [
   {
     id: "trash-003",
     mode: "memo",
-    content: "削除予定: 一時メモ",
+    content: createDocFromPlainText("削除予定: 一時メモ"),
+    contentText: "削除予定: 一時メモ",
     createdAt: "2026-01-25 20:02",
     trashedAt: "2026-02-07 19:55",
     favorite: false,
@@ -153,7 +181,10 @@ const basePosts: PostRecord[] = [
 ];
 
 function clonePosts(posts: PostRecord[]): PostRecord[] {
-  return posts.map((post) => ({ ...post }));
+  return posts.map((post) => ({
+    ...post,
+    content: JSON.parse(JSON.stringify(post.content)),
+  }));
 }
 
 function sortByCreatedAtDesc(a: PostRecord, b: PostRecord): number {
@@ -239,6 +270,105 @@ describe("AuthedScreen", () => {
           ok: true,
           data: { ...target },
         };
+      }
+    );
+
+    getPostActionsMock().createPostAction.mockImplementation(
+      async ({
+        mode,
+        title,
+        content,
+      }: {
+        mode: "memo" | "note";
+        title?: string;
+        content: PostRecord["content"];
+      }) => {
+        const max = mutablePosts.reduce((currentMax, post) => {
+          const match = /^post-(\d+)$/.exec(post.id);
+          if (!match) {
+            return currentMax;
+          }
+          const value = Number.parseInt(match[1], 10);
+          return Number.isNaN(value) ? currentMax : Math.max(currentMax, value);
+        }, 0);
+
+        const created: PostRecord = {
+          id: `post-${`${max + 1}`.padStart(3, "0")}`,
+          mode,
+          title: mode === "note" ? title?.trim() || undefined : undefined,
+          content,
+          contentText: extractContentText(content, mode),
+          favorite: false,
+          createdAt: "2026-02-17 10:00",
+        };
+        mutablePosts = [created, ...mutablePosts];
+        return { ok: true, data: created };
+      }
+    );
+
+    getPostActionsMock().updatePostAction.mockImplementation(
+      async ({
+        postId,
+        title,
+        content,
+      }: {
+        postId: string;
+        title?: string;
+        content: PostRecord["content"];
+      }) => {
+        const target = mutablePosts.find((post) => post.id === postId);
+        if (!target) {
+          return {
+            ok: false,
+            error: {
+              code: "NOT_FOUND",
+              message: "対象が見つかりません",
+            },
+          };
+        }
+
+        target.content = content;
+        target.contentText = extractContentText(content, target.mode);
+        target.title = target.mode === "note" ? title?.trim() || undefined : undefined;
+
+        return {
+          ok: true,
+          data: { ...target },
+        };
+      }
+    );
+
+    getPostActionsMock().moveToTrashAction.mockImplementation(async ({ postId }: { postId: string }) => {
+      const target = mutablePosts.find((post) => post.id === postId);
+      if (!target) {
+        return {
+          ok: false,
+          error: {
+            code: "NOT_FOUND",
+            message: "対象が見つかりません",
+          },
+        };
+      }
+
+      target.trashedAt = target.trashedAt ?? "2026-02-17 10:01";
+      return { ok: true, data: null };
+    });
+
+    getPostActionsMock().restoreFromTrashAction.mockImplementation(
+      async ({ postId }: { postId: string }) => {
+        const target = mutablePosts.find((post) => post.id === postId);
+        if (!target) {
+          return {
+            ok: false,
+            error: {
+              code: "NOT_FOUND",
+              message: "対象が見つかりません",
+            },
+          };
+        }
+
+        target.trashedAt = undefined;
+        return { ok: true, data: null };
       }
     );
   });
@@ -423,20 +553,203 @@ describe("AuthedScreen", () => {
     expect(toast.error).toHaveBeenCalledWith("現在この環境では投稿機能を利用できません。");
   });
 
-  it("fires stub toast when clicking trash item action buttons", async () => {
+  it("restores trash item through restoreFromTrashAction", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
     render(<AuthedScreen logoutUrl="/" />);
 
     const restoreButtons = await screen.findAllByRole("button", { name: "復元" });
-    const deleteButtons = await screen.findAllByRole("button", { name: "完全に削除" });
 
     await user.click(restoreButtons[0]);
+
+    expect(getPostActionsMock().restoreFromTrashAction).toHaveBeenCalledWith({
+      postId: "trash-001",
+    });
+    expect(toast).toHaveBeenCalledWith("投稿を復元しました");
+  });
+
+  it("keeps trash item visible and shows error when restoreFromTrashAction fails", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
+    getPostActionsMock().restoreFromTrashAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "NOT_FOUND",
+        message: "対象が見つかりません",
+      },
+    });
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    const restoreButtons = await screen.findAllByRole("button", { name: "復元" });
+    await user.click(restoreButtons[0]);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("対象が見つかりません");
+    });
+    expect(screen.getByText("破棄候補メモ: 先週の打ち合わせメモ")).toBeInTheDocument();
+  });
+
+  it("keeps permanent delete as stub action for row button", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    const deleteButtons = await screen.findAllByRole("button", { name: "完全に削除" });
     await user.click(deleteButtons[0]);
 
     expect(toast).toHaveBeenCalledWith("未実装です");
-    expect((toast as jest.Mock).mock.calls).toHaveLength(2);
+  });
+
+  it("creates a memo post and updates the list immediately", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+    await user.type(screen.getByLabelText("メモ本文"), "新規メモ");
+    await user.click(screen.getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => {
+      expect(getPostActionsMock().createPostAction).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByText("新規メモ")).toBeInTheDocument();
+    expect(toast).toHaveBeenCalledWith("保存しました");
+  });
+
+  it("keeps memo draft and shows error when createPostAction fails", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    getPostActionsMock().createPostAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "内容は最大280文字までです",
+      },
+    });
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+    const input = screen.getByLabelText("メモ本文");
+    await user.type(input, "失敗するメモ");
+    await user.click(screen.getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("内容は最大280文字までです");
+    });
+    expect(input).toHaveValue("失敗するメモ");
+  });
+
+  it("updates memo inline edit and reflects the new content", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "編集" }));
+    const input = within(memoCard).getByLabelText("メモ本文");
+    await user.clear(input);
+    await user.type(input, "更新後のメモ");
+    await user.click(within(memoCard).getByRole("button", { name: "更新する" }));
+
+    await waitFor(() => {
+      expect(getPostActionsMock().updatePostAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          postId: "post-001",
+        })
+      );
+    });
+    expect(screen.getByText("更新後のメモ")).toBeInTheDocument();
+    expect(toast).toHaveBeenCalledWith("更新しました");
+  });
+
+  it("keeps note edit modal open and shows error when updatePostAction fails", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+    getPostActionsMock().updatePostAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "入力内容に不備があります",
+      },
+    });
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    const noteCard = (await screen.findByText(/今日の学び/)).closest("article");
+    if (!noteCard) {
+      throw new Error("note card not found");
+    }
+
+    await user.click(within(noteCard).getByRole("button", { name: "編集" }));
+    await user.click(screen.getByRole("button", { name: "更新する" }));
+
+    await waitFor(() => {
+      expect(getPostActionsMock().updatePostAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          postId: "post-002",
+        })
+      );
+    });
+    expect(toast.error).toHaveBeenCalledWith("入力内容に不備があります");
+    expect(screen.getByRole("button", { name: "更新する" })).toBeInTheDocument();
+  });
+
+  it("moves a post to trash and removes it from the active list immediately", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "削除" }));
+
+    await waitFor(() => {
+      expect(getPostActionsMock().moveToTrashAction).toHaveBeenCalledWith({
+        postId: "post-001",
+      });
+    });
+    expect(screen.queryByText("買い物メモ: 牛乳、パン、トマト")).not.toBeInTheDocument();
+    expect(toast).toHaveBeenCalledWith("投稿を削除しました");
+  });
+
+  it("keeps list item visible and shows error when moveToTrashAction fails", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    getPostActionsMock().moveToTrashAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "NOT_FOUND",
+        message: "対象が見つかりません",
+      },
+    });
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "削除" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("対象が見つかりません");
+    });
+    expect(screen.getByText("買い物メモ: 牛乳、パン、トマト")).toBeInTheDocument();
   });
 
   it("shows bulk actions and updates selected count from row checkbox", async () => {
@@ -550,7 +863,7 @@ describe("AuthedScreen", () => {
     expect(within(memoCard).queryByRole("button", { name: "更新する" })).not.toBeInTheDocument();
   });
 
-  it("opens note edit modal from note card", async () => {
+  it("opens note edit modal and updates note", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=note");
 
@@ -567,5 +880,16 @@ describe("AuthedScreen", () => {
     await user.click(within(noteCard).getByRole("button", { name: "編集" }));
 
     expect(screen.getByRole("button", { name: "更新する" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "更新する" }));
+
+    await waitFor(() => {
+      expect(getPostActionsMock().updatePostAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          postId: "post-002",
+        })
+      );
+    });
+    expect(toast).toHaveBeenCalledWith("更新しました");
   });
 });

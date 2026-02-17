@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 
 import PostCard from "@/components/authed/PostCard";
+import { createDocFromPlainText } from "@/lib/posts/content";
 import type { PostRecord } from "@/lib/posts/types";
 import { sanitizeRichHtml } from "@/lib/sanitizeRichHtml";
 
@@ -10,11 +11,6 @@ jest.mock("@/lib/sanitizeRichHtml", () => {
     ...actual,
     sanitizeRichHtml: jest.fn(actual.sanitizeRichHtml),
   };
-});
-
-jest.mock("sonner", () => {
-  const toast = Object.assign(jest.fn(), { error: jest.fn() });
-  return { toast };
 });
 
 const actualSanitizeRichHtml = (
@@ -33,8 +29,47 @@ describe("PostCard", () => {
     const post: PostRecord = {
       id: "note-001",
       mode: "note",
-      content:
-        '<h2>見出し</h2><ul><li><strong>項目</strong></li></ul><p><a href="https://example.com">参考</a></p><script>alert(1)</script>',
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 2 },
+            content: [{ type: "text", text: "見出し" }],
+          },
+          {
+            type: "bulletList",
+            content: [
+              {
+                type: "listItem",
+                content: [
+                  {
+                    type: "paragraph",
+                    content: [
+                      {
+                        type: "text",
+                        text: "項目",
+                        marks: [{ type: "bold" }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: "参考",
+                marks: [{ type: "link", attrs: { href: "https://example.com" } }],
+              },
+            ],
+          },
+        ],
+      },
+      contentText: "見出し\n\n項目\n参考",
       createdAt: "2026-02-15 12:00",
       favorite: false,
     };
@@ -44,6 +79,7 @@ describe("PostCard", () => {
         post={post}
         onToggleFavorite={jest.fn()}
         onEdit={jest.fn()}
+        onMoveToTrash={jest.fn()}
       />
     );
 
@@ -64,7 +100,8 @@ describe("PostCard", () => {
       id: "note-002",
       mode: "note",
       title: "ノートタイトル",
-      content: "<h2>本文見出し</h2>",
+      content: createDocFromPlainText("本文見出し"),
+      contentText: "本文見出し",
       createdAt: "2026-02-15 12:00",
       favorite: false,
     };
@@ -74,6 +111,7 @@ describe("PostCard", () => {
         post={post}
         onToggleFavorite={jest.fn()}
         onEdit={jest.fn()}
+        onMoveToTrash={jest.fn()}
       />
     );
 
@@ -85,7 +123,11 @@ describe("PostCard", () => {
     const post: PostRecord = {
       id: "note-003",
       mode: "note",
-      content: "## 見出し\n- 箇条書き1\n- 箇条書き2",
+      content: {
+        type: "doc",
+        content: [{ type: "unsupportedNodeType" }],
+      },
+      contentText: "見出し\n箇条書き1\n箇条書き2",
       createdAt: "2026-02-15 12:00",
       favorite: false,
     };
@@ -95,12 +137,13 @@ describe("PostCard", () => {
         post={post}
         onToggleFavorite={jest.fn()}
         onEdit={jest.fn()}
+        onMoveToTrash={jest.fn()}
       />
     );
 
     const content = screen.getByTestId("post-content");
 
-    expect(content).toHaveTextContent("## 見出し");
+    expect(content).toHaveTextContent("見出し");
     expect(content).toHaveTextContent("箇条書き1");
     expect(content).toHaveTextContent("箇条書き2");
     expect(content.querySelector(".md-content")).toBeNull();
@@ -112,7 +155,8 @@ describe("PostCard", () => {
     const post: PostRecord = {
       id: "note-004",
       mode: "note",
-      content: '<script>alert("xss")</script><h2>見出し</h2>',
+      content: createDocFromPlainText("見出し"),
+      contentText: "見出し",
       createdAt: "2026-02-15 12:00",
       favorite: false,
     };
@@ -122,12 +166,12 @@ describe("PostCard", () => {
         post={post}
         onToggleFavorite={jest.fn()}
         onEdit={jest.fn()}
+        onMoveToTrash={jest.fn()}
       />
     );
 
     const content = screen.getByTestId("post-content");
-    expect(content.querySelector(".md-content")?.innerHTML).toBe("");
+    expect(content).toHaveTextContent("見出し");
     expect(within(content).queryByRole("heading", { level: 2, name: "見出し" })).not.toBeInTheDocument();
-    expect(content.querySelector("script")).toBeNull();
   });
 });

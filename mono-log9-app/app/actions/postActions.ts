@@ -1,6 +1,10 @@
 "use server";
 
 import { isPostRepositoryError, type PostErrorCode } from "@/lib/posts/errors";
+import {
+  toValidatedCreatePostDto,
+  toValidatedUpdatePostDto,
+} from "@/lib/posts/inputValidation";
 import { postRepository } from "@/lib/posts/postRepository";
 import type {
   CreatePostInput,
@@ -47,7 +51,8 @@ export async function listPostsAction(input: ListPostsInput): Promise<ActionResu
 
 export async function createPostAction(input: CreatePostInput): Promise<ActionResult<PostRecord>> {
   try {
-    const data = await postRepository.createPost(input);
+    const validated = toValidatedCreatePostDto(input);
+    const data = await postRepository.createPost(validated);
     return { ok: true, data };
   } catch (error) {
     return toErrorResult(error);
@@ -56,7 +61,8 @@ export async function createPostAction(input: CreatePostInput): Promise<ActionRe
 
 export async function updatePostAction(input: UpdatePostInput): Promise<ActionResult<PostRecord>> {
   try {
-    const data = await postRepository.updatePost(input);
+    const validated = toValidatedUpdatePostDto(input);
+    const data = await postRepository.updatePost(validated);
     return { ok: true, data };
   } catch (error) {
     return toErrorResult(error);

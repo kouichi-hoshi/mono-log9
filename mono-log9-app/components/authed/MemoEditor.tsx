@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 type MemoEditorProps = {
   value: string;
   onValueChange: (nextValue: string) => void;
-  onSave: (value: string) => void;
+  onSave: (value: string) => Promise<boolean> | boolean;
   isEditing?: boolean;
   onCancel?: () => void;
   showValidationError?: boolean;
@@ -24,19 +24,21 @@ export default function MemoEditor({
   showValidationError = false,
   onClearValidationError,
 }: MemoEditorProps) {
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [showInternalAlert, setShowInternalAlert] = React.useState(false);
   const showAlert = showInternalAlert || showValidationError;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (value.trim().length === 0) {
       setShowInternalAlert(true);
       return;
     }
 
     setShowInternalAlert(false);
-    onSave(value);
-    if (!isEditing) {
+    const saved = await onSave(value);
+    if (saved && !isEditing) {
       onValueChange("");
+      inputRef.current?.focus();
     }
   };
 
@@ -49,6 +51,7 @@ export default function MemoEditor({
     <>
       <div className="flex items-stretch gap-2">
         <input
+          ref={inputRef}
           type="text"
           value={value}
           aria-label="メモ本文"

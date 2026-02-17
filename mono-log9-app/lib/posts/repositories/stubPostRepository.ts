@@ -1,16 +1,22 @@
+import {
+  assertContentTextByMode,
+  assertValidPostContent,
+  clonePostContent,
+  extractContentText,
+  normalizePostTitle,
+} from "@/lib/posts/content";
 import { PostRepositoryError } from "@/lib/posts/errors";
 import { cloneInitialStubPosts } from "@/lib/posts/stubSeed";
 import type {
-  CreatePostInput,
   ListPostsInput,
   ListPostsResult,
   MoveToTrashInput,
-  PostMode,
   PostRecord,
   PostRepository,
   RestoreFromTrashInput,
   SetFavoriteInput,
-  UpdatePostInput,
+  ValidatedCreatePostDto,
+  ValidatedUpdatePostDto,
 } from "@/lib/posts/types";
 
 const DEFAULT_LIMIT = 10;
@@ -24,7 +30,7 @@ function ensureDevelopmentOnly() {
 }
 
 function clonePost(post: PostRecord): PostRecord {
-  return { ...post };
+  return { ...post, content: clonePostContent(post.content) };
 }
 
 function formatNowDate(): string {
@@ -47,7 +53,7 @@ function validatePostId(postId: string) {
   }
 }
 
-function validateMode(mode: PostMode) {
+function validateMode(mode: unknown) {
   if (mode !== "memo" && mode !== "note") {
     throw new PostRepositoryError("VALIDATION_ERROR", "入力内容に不備があります");
   }
@@ -56,20 +62,6 @@ function validateMode(mode: PostMode) {
 function validateBoolean(value: unknown) {
   if (typeof value !== "boolean") {
     throw new PostRepositoryError("VALIDATION_ERROR", "入力内容に不備があります");
-  }
-}
-
-function validateContentByMode(mode: PostMode, content: string) {
-  if (content.trim().length === 0) {
-    throw new PostRepositoryError("VALIDATION_ERROR", "内容を入力してください");
-  }
-
-  if (mode === "memo" && content.length > 280) {
-    throw new PostRepositoryError("VALIDATION_ERROR", "内容は最大280文字までです");
-  }
-
-  if (mode === "note" && content.length > 25000) {
-    throw new PostRepositoryError("VALIDATION_ERROR", "内容は最大25000文字までです");
   }
 }
 
@@ -185,17 +177,24 @@ export const stubPostRepository: PostRepository = {
     };
   },
 
-  async createPost(input: CreatePostInput): Promise<PostRecord> {
+  async createPost(input: ValidatedCreatePostDto): Promise<PostRecord> {
     ensureDevelopmentOnly();
 
     validateMode(input.mode);
-    validateContentByMode(input.mode, input.content);
+    assertValidPostContent(input.content);
+    const derivedContentText = extractContentText(input.content, input.mode);
+    if (derivedContentText !== input.contentText) {
+      throw new PostRepositoryError("VALIDATION_ERROR", "入力内容に不備があります");
+    }
+    assertContentTextByMode(input.contentText, input.mode);
+    const normalizedTitle = normalizePostTitle(input.title, input.mode);
 
     const created: PostRecord = {
       id: buildNextPostId(),
       mode: input.mode,
-      title: input.title,
-      content: input.content,
+      title: normalizedTitle,
+      content: clonePostContent(input.content),
+      contentText: input.contentText,
       favorite: false,
       createdAt: formatNowDate(),
     };
@@ -204,23 +203,27 @@ export const stubPostRepository: PostRepository = {
     return clonePost(created);
   },
 
-  async updatePost(input: UpdatePostInput): Promise<PostRecord> {
+  async updatePost(input: ValidatedUpdatePostDto): Promise<PostRecord> {
     ensureDevelopmentOnly();
 
     validatePostId(input.postId);
-    if (input.content.trim().length === 0 || input.content.length > 25000) {
-      throw new PostRepositoryError("VALIDATION_ERROR", "入力内容に不備があります");
-    }
+    assertValidPostContent(input.content);
 
     const target = findPost(input.postId);
-    validateContentByMode(target.mode, input.content);
+    const normalizedTitle = normalizePostTitle(input.title, target.mode);
+    const contentText = extractContentText(input.content, target.mode);
+    assertContentTextByMode(contentText, target.mode);
 
-    if (target.title === input.title && target.content === input.content) {
+    if (
+      target.title === normalizedTitle &&
+      JSON.stringify(target.content) === JSON.stringify(input.content)
+    ) {
       return clonePost(target);
     }
 
-    target.title = input.title;
-    target.content = input.content;
+    target.title = normalizedTitle;
+    target.content = clonePostContent(input.content);
+    target.contentText = contentText;
 
     return clonePost(target);
   },

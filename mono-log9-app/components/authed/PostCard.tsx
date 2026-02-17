@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { PencilLine, Star, Trash2 } from "lucide-react";
-import { toast } from "sonner";
 
 import MemoEditor from "@/components/authed/MemoEditor";
 import { Button } from "@/components/ui/button";
+import { toSanitizableHtml } from "@/lib/posts/contentHtml";
 import type { PostRecord } from "@/lib/posts/types";
 import { sanitizeRichHtml } from "@/lib/sanitizeRichHtml";
 import { cn } from "@/lib/utils";
@@ -14,17 +14,19 @@ type PostCardProps = {
   post: PostRecord;
   onToggleFavorite: (postId: string) => void;
   onEdit: (postId: string) => void;
+  onMoveToTrash: (postId: string) => void;
   isMemoEditing?: boolean;
   memoEditValue?: string;
   onMemoEditValueChange?: (nextValue: string) => void;
   onCancelMemoEdit?: () => void;
-  onSaveMemoEditStub?: (value: string) => void;
+  onSaveMemoEditStub?: (value: string) => Promise<boolean> | boolean;
 };
 
 export default function PostCard({
   post,
   onToggleFavorite,
   onEdit,
+  onMoveToTrash,
   isMemoEditing = false,
   memoEditValue = "",
   onMemoEditValueChange,
@@ -35,14 +37,22 @@ export default function PostCard({
   const [expanded, setExpanded] = React.useState(false);
   const isNote = post.mode === "note";
   const noteHasTitle = isNote && Boolean(post.title?.trim());
-  const displayContent = noteHasTitle ? post.title ?? "" : post.content;
+  const displayContent = noteHasTitle ? post.title ?? "" : post.contentText;
   const sanitizedNoteHtml = React.useMemo(
-    () => (hasHydrated ? sanitizeRichHtml(post.content) : ""),
-    [hasHydrated, post.content]
-  );
-  const hasRichHtml = React.useMemo(
-    () => /<(h2|h3|h4|p|ul|ol|li|strong|a|br)(\s|>)/i.test(post.content),
-    [post.content]
+    () => {
+      if (!hasHydrated || !isNote || noteHasTitle) {
+        return null;
+      }
+
+      const html = toSanitizableHtml(post.content);
+      if (!html) {
+        return null;
+      }
+
+      const sanitized = sanitizeRichHtml(html);
+      return sanitized.length > 0 ? sanitized : null;
+    },
+    [hasHydrated, isNote, noteHasTitle, post.content]
   );
 
   React.useEffect(() => {
@@ -61,7 +71,7 @@ export default function PostCard({
           onValueChange={(nextValue) => onMemoEditValueChange?.(nextValue)}
           isEditing
           onCancel={onCancelMemoEdit}
-          onSave={(value) => onSaveMemoEditStub?.(value)}
+          onSave={(value) => onSaveMemoEditStub?.(value) ?? false}
         />
       </article>
     );
@@ -79,14 +89,16 @@ export default function PostCard({
         )}
       >
         {isNote && !noteHasTitle ? (
-          hasRichHtml ? (
+          sanitizedNoteHtml ? (
             <div
               className="md-content"
               suppressHydrationWarning
               dangerouslySetInnerHTML={{ __html: sanitizedNoteHtml }}
             />
+          ) : hasHydrated ? (
+            <div className="whitespace-pre-wrap">{post.contentText}</div>
           ) : (
-            <div className="whitespace-pre-wrap">{post.content}</div>
+            <div suppressHydrationWarning />
           )
         ) : (
           displayContent
@@ -121,7 +133,7 @@ export default function PostCard({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => toast("未実装です")}
+          onClick={() => onMoveToTrash(post.id)}
         >
           <Trash2 className="h-4 w-4 text-foreground/60" />
           削除

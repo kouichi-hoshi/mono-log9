@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import NoteComposerModal from "@/components/authed/NoteComposerModal";
+import { createDocFromPlainText } from "@/lib/posts/content";
 
 describe("NoteComposerModal", () => {
   it("shows validation alert when note body is empty", async () => {
@@ -12,7 +13,7 @@ describe("NoteComposerModal", () => {
         open
         onOpenChange={jest.fn()}
         mode="create"
-        onSaveStub={jest.fn()}
+        onSaveStub={jest.fn().mockResolvedValue(true)}
       />
     );
 
@@ -30,7 +31,7 @@ describe("NoteComposerModal", () => {
         open
         onOpenChange={onOpenChange}
         mode="create"
-        onSaveStub={jest.fn()}
+        onSaveStub={jest.fn().mockResolvedValue(true)}
       />
     );
 
@@ -53,8 +54,9 @@ describe("NoteComposerModal", () => {
         open
         onOpenChange={jest.fn()}
         mode="edit"
-        initialContent="既存ノート本文"
-        onSaveStub={onSaveStub}
+        initialContentJson={createDocFromPlainText("既存ノート本文")}
+        initialPlainText="既存ノート本文"
+        onSaveStub={onSaveStub.mockResolvedValue(true)}
       />
     );
 

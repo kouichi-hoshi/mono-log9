@@ -1,11 +1,15 @@
+import type { JSONContent } from "@tiptap/core";
+
 export type PostMode = "memo" | "note";
 export type PostView = PostMode | "trash";
+export type PostContent = JSONContent;
 
 export type PostRecord = {
   id: string;
   mode: PostMode;
   title?: string;
-  content: string;
+  content: PostContent;
+  contentText: string;
   favorite: boolean;
   createdAt: string;
   trashedAt?: string;
@@ -27,13 +31,26 @@ export type ListPostsResult = {
 export type CreatePostInput = {
   mode: PostMode;
   title?: string;
-  content: string;
+  content: PostContent;
 };
 
 export type UpdatePostInput = {
   postId: string;
   title?: string;
-  content: string;
+  content: PostContent;
+};
+
+export type ValidatedCreatePostDto = {
+  mode: PostMode;
+  title?: string;
+  content: PostContent;
+  contentText: string;
+};
+
+export type ValidatedUpdatePostDto = {
+  postId: string;
+  title?: string;
+  content: PostContent;
 };
 
 export type SetFavoriteInput = {
@@ -51,8 +68,8 @@ export type RestoreFromTrashInput = {
 
 export type PostRepository = {
   listPosts: (input: ListPostsInput) => Promise<ListPostsResult>;
-  createPost: (input: CreatePostInput) => Promise<PostRecord>;
-  updatePost: (input: UpdatePostInput) => Promise<PostRecord>;
+  createPost: (input: ValidatedCreatePostDto) => Promise<PostRecord>;
+  updatePost: (input: ValidatedUpdatePostDto) => Promise<PostRecord>;
   setFavorite: (input: SetFavoriteInput) => Promise<PostRecord>;
   moveToTrash: (input: MoveToTrashInput) => Promise<void>;
   restoreFromTrash: (input: RestoreFromTrashInput) => Promise<void>;

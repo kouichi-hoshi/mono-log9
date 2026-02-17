@@ -6,6 +6,7 @@ import EditorActionBar from "@/components/authed/EditorActionBar";
 import NoteEditor from "@/components/authed/NoteEditor";
 import type { NoteDraft } from "@/components/authed/types";
 import FullscreenModal from "@/components/ui/FullscreenModal";
+import type { PostContent } from "@/lib/posts/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,40 +23,20 @@ type NoteComposerModalProps = {
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
   initialTitle?: string;
-  initialContent?: string;
-  onSaveStub: (draft: NoteDraft) => void;
+  initialContentJson?: PostContent | null;
+  initialPlainText?: string;
+  onSaveStub: (draft: NoteDraft) => Promise<boolean> | boolean;
 };
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function toEditorContent(value?: string) {
-  if (!value || value.trim().length === 0) {
-    return "";
-  }
-
-  if (value.includes("<") && value.includes(">")) {
-    return value;
-  }
-
-  return `<p>${escapeHtml(value).replaceAll("\n", "<br/>")}</p>`;
-}
 
 export default function NoteComposerModal({
   open,
   onOpenChange,
   mode,
   initialTitle,
-  initialContent,
+  initialContentJson,
+  initialPlainText,
   onSaveStub,
 }: NoteComposerModalProps) {
-  const [contentHtml, setContentHtml] = React.useState("");
   const [draft, setDraft] = React.useState<NoteDraft>({
     title: "",
     contentJson: null,
@@ -87,15 +68,14 @@ export default function NoteComposerModal({
       return;
     }
 
-    setContentHtml(toEditorContent(initialContent));
     setDraft({
       title: initialTitle ?? "",
-      contentJson: null,
-      plainText: initialContent ?? "",
+      contentJson: initialContentJson ?? null,
+      plainText: initialPlainText ?? "",
     });
     setShowValidationError(false);
     setIsDiscardDialogOpen(false);
-  }, [initialContent, initialTitle, open, mode]);
+  }, [initialContentJson, initialPlainText, initialTitle, open, mode]);
 
   const closeNoteModal = React.useCallback(() => {
     onOpenChange(false);
@@ -114,15 +94,17 @@ export default function NoteComposerModal({
     setIsDiscardDialogOpen(true);
   }, [closeNoteModal, hasAnyInput]);
 
-  const handleSaveNote = React.useCallback(() => {
-    if (draft.plainText.trim().length === 0) {
+  const handleSaveNote = React.useCallback(async () => {
+    if (draft.plainText.trim().length === 0 || !draft.contentJson) {
       setShowValidationError(true);
       return;
     }
 
     setShowValidationError(false);
-    onSaveStub(draft);
-    closeNoteModal();
+    const saved = await onSaveStub(draft);
+    if (saved) {
+      closeNoteModal();
+    }
   }, [closeNoteModal, draft, onSaveStub]);
 
   return (
@@ -145,8 +127,7 @@ export default function NoteComposerModal({
         <NoteEditor
           title={draft.title}
           onTitleChange={handleTitleChange}
-          content={contentHtml}
-          onContentChange={setContentHtml}
+          contentJson={draft.contentJson}
           onContentStateChange={handleContentStateChange}
           showValidationError={showValidationError}
           onClearValidationError={() => setShowValidationError(false)}
