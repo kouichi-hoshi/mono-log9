@@ -4,10 +4,17 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
+import {
+  listPostsAction,
+  setFavoriteAction,
+  type ActionResult,
+} from "@/app/actions/postActions";
 import Container1 from "@/components/authed/Container1";
 import Container2 from "@/components/authed/Container2";
 import HeaderPostArea from "@/components/authed/HeaderPostArea";
 import NoteComposerModal from "@/components/authed/NoteComposerModal";
+import { stubUser, type ViewMode } from "@/components/authed/stubs";
+import type { NoteDraft } from "@/components/authed/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,24 +26,48 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  stubPosts,
-  stubTrashPosts,
-  stubUser,
-  type StubPost,
-  type StubTrashPost,
-  type ViewMode,
-} from "@/components/authed/stubs";
-import type { NoteDraft } from "@/components/authed/types";
-import {
   buildQueryForFavoriteToggle,
   buildQueryForViewChange,
   normalizeAuthedQuery,
   toRootPath,
 } from "@/lib/authedQueryState";
+import type { ListPostsResult, PostRecord, PostView } from "@/lib/posts/types";
 
 type AuthedScreenProps = {
   logoutUrl: string;
 };
+
+type ListState = {
+  view: PostView | null;
+  isLoading: boolean;
+  items: PostRecord[];
+  nextCursor: string | null;
+  hasNext: boolean;
+  error: { code: string; message: string } | null;
+};
+
+const INITIAL_LIST_STATE: ListState = {
+  view: null,
+  isLoading: true,
+  items: [],
+  nextCursor: null,
+  hasNext: false,
+  error: null,
+};
+
+function toFailedState(
+  view: PostView,
+  result: Extract<ActionResult<ListPostsResult>, { ok: false }>
+): ListState {
+  return {
+    view,
+    isLoading: false,
+    items: [],
+    nextCursor: null,
+    hasNext: false,
+    error: result.error,
+  };
+}
 
 export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const router = useRouter();
@@ -54,9 +85,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       ? normalizedQuery.state.favoriteMemo
       : normalizedQuery.state.favoriteNote;
 
-  const [posts, setPosts] = React.useState<StubPost[]>(() => stubPosts);
-  const [trashPosts] = React.useState<StubTrashPost[]>(() => stubTrashPosts);
-
+  const [listState, setListState] = React.useState<ListState>(INITIAL_LIST_STATE);
   const [memoDraft, setMemoDraft] = React.useState("");
   const [editingMemoPostId, setEditingMemoPostId] = React.useState<string | null>(null);
   const [editingMemoValue, setEditingMemoValue] = React.useState("");
@@ -65,22 +94,23 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const [noteModalMode, setNoteModalMode] = React.useState<"create" | "edit">("create");
   const [noteModalInitialTitle, setNoteModalInitialTitle] = React.useState("");
   const [noteModalInitialContent, setNoteModalInitialContent] = React.useState("");
-  const [selectedTrashPostIds, setSelectedTrashPostIds] = React.useState<Set<string>>(() => new Set());
+  const [selectedTrashPostIds, setSelectedTrashPostIds] = React.useState<Set<string>>(
+    () => new Set()
+  );
   const [deleteDialogMode, setDeleteDialogMode] = React.useState<"selected" | "all" | null>(null);
 
-  const filteredPosts = React.useMemo(() => {
-    return posts.filter((post) => {
-      if (post.mode !== mode) {
-        return false;
-      }
-
-      if (favoriteOnly && !post.favorite) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [favoriteOnly, mode, posts]);
+  const visibleItems = React.useMemo(
+    () => (listState.view === normalizedQuery.state.view ? listState.items : []),
+    [listState.items, listState.view, normalizedQuery.state.view]
+  );
+  const posts = React.useMemo(
+    () => (isTrashView ? [] : visibleItems),
+    [isTrashView, visibleItems]
+  );
+  const trashPosts = React.useMemo(
+    () => (isTrashView ? visibleItems : []),
+    [isTrashView, visibleItems]
+  );
 
   React.useEffect(() => {
     if (!normalizedQuery.changed) {
@@ -89,6 +119,55 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
 
     router.replace(toRootPath(normalizedQuery.nextQuery));
   }, [normalizedQuery.changed, normalizedQuery.nextQuery, router]);
+
+  React.useEffect(() => {
+    if (normalizedQuery.changed) {
+      return;
+    }
+
+    let active = true;
+
+    setListState((current) => ({
+      ...current,
+      view: normalizedQuery.state.view,
+      isLoading: true,
+      items: [],
+      nextCursor: null,
+      hasNext: false,
+      error: null,
+    }));
+
+    void (async () => {
+      const result = await listPostsAction({
+        view: normalizedQuery.state.view,
+        favoriteOnly,
+        limit: 10,
+      });
+
+      if (!active) {
+        return;
+      }
+
+      if (!result.ok) {
+        setListState(toFailedState(normalizedQuery.state.view, result));
+        toast.error(result.error.message);
+        return;
+      }
+
+      setListState({
+        view: normalizedQuery.state.view,
+        isLoading: false,
+        items: result.data.items,
+        nextCursor: result.data.nextCursor,
+        hasNext: result.data.hasNext,
+        error: null,
+      });
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [favoriteOnly, normalizedQuery.changed, normalizedQuery.state.view]);
 
   const handleFavoriteFilterToggle = React.useCallback(() => {
     const next = buildQueryForFavoriteToggle(queryString);
@@ -99,14 +178,17 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     router.push(toRootPath(next.nextQuery));
   }, [queryString, router]);
 
-  const handleModeChange = React.useCallback((nextMode: ViewMode) => {
-    const next = buildQueryForViewChange(queryString, nextMode);
-    if (!next.changed) {
-      return;
-    }
+  const handleModeChange = React.useCallback(
+    (nextMode: ViewMode) => {
+      const next = buildQueryForViewChange(queryString, nextMode);
+      if (!next.changed) {
+        return;
+      }
 
-    router.push(toRootPath(next.nextQuery));
-  }, [queryString, router]);
+      router.push(toRootPath(next.nextQuery));
+    },
+    [queryString, router]
+  );
 
   const handleTrashClick = React.useCallback(() => {
     const next = buildQueryForViewChange(queryString, "trash");
@@ -123,13 +205,40 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     }
   }, [isTrashView]);
 
-  const handleToggleFavorite = React.useCallback((postId: string) => {
-    setPosts((current) =>
-      current.map((post) =>
-        post.id === postId ? { ...post, favorite: !post.favorite } : post
-      )
-    );
-  }, []);
+  const handleToggleFavorite = React.useCallback(
+    async (postId: string) => {
+      const target = listState.items.find((post) => post.id === postId);
+      if (!target) {
+        return;
+      }
+
+      const result = await setFavoriteAction({
+        postId,
+        favorite: !target.favorite,
+      });
+
+      if (!result.ok) {
+        toast.error(result.error.message);
+        return;
+      }
+
+      setListState((current) => ({
+        ...current,
+        items: current.items.flatMap((post) => {
+          if (post.id !== result.data.id) {
+            return [post];
+          }
+
+          if (favoriteOnly && !result.data.favorite) {
+            return [];
+          }
+
+          return [{ ...post, favorite: result.data.favorite }];
+        }),
+      }));
+    },
+    [favoriteOnly, listState.items]
+  );
 
   const handleOpenNoteCreate = React.useCallback(() => {
     setNoteModalMode("create");
@@ -278,8 +387,10 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
             mode={mode}
             isTrashView={isTrashView}
             favoriteOnly={favoriteOnly}
-            posts={filteredPosts}
+            posts={posts}
             trashPosts={trashPosts}
+            isLoading={listState.isLoading}
+            errorMessage={listState.error?.message ?? null}
             onFavoriteToggle={handleFavoriteFilterToggle}
             onToggleFavorite={handleToggleFavorite}
             onEdit={handleEdit}

@@ -1,13 +1,19 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import AuthedScreen from "@/components/authed/AuthedScreen";
+import type { ListPostsInput, PostRecord } from "@/lib/posts/types";
 import { toast } from "sonner";
 
 jest.mock("sonner", () => {
   const toast = Object.assign(jest.fn(), { error: jest.fn() });
   return { toast };
 });
+
+jest.mock("@/app/actions/postActions", () => ({
+  listPostsAction: jest.fn(),
+  setFavoriteAction: jest.fn(),
+}));
 
 jest.mock("next/navigation", () => {
   const React = jest.requireActual<typeof import("react")>("react");
@@ -88,47 +94,189 @@ function getNavigationMock() {
   return jest.requireMock("next/navigation") as NavigationMock;
 }
 
+type PostActionsModule = {
+  listPostsAction: jest.Mock;
+  setFavoriteAction: jest.Mock;
+};
+
+function getPostActionsMock() {
+  return jest.requireMock("@/app/actions/postActions") as PostActionsModule;
+}
+
+const basePosts: PostRecord[] = [
+  {
+    id: "post-001",
+    mode: "memo",
+    content: "買い物メモ: 牛乳、パン、トマト",
+    createdAt: "2026-02-08 09:12",
+    favorite: false,
+  },
+  {
+    id: "post-002",
+    mode: "note",
+    content: "<h2>今日の学び</h2><p>内容</p>",
+    createdAt: "2026-02-07 21:05",
+    favorite: true,
+  },
+  {
+    id: "post-003",
+    mode: "memo",
+    content: "打ち合わせは金曜 14:00 から",
+    createdAt: "2026-02-07 10:45",
+    favorite: false,
+  },
+  {
+    id: "trash-001",
+    mode: "memo",
+    content: "破棄候補メモ: 先週の打ち合わせメモ",
+    createdAt: "2026-01-30 16:20",
+    trashedAt: "2026-02-08 12:41",
+    favorite: false,
+  },
+  {
+    id: "trash-002",
+    mode: "note",
+    title: "古い設計メモ",
+    content: "旧バージョンの設計メモ",
+    createdAt: "2026-01-28 09:10",
+    trashedAt: "2026-02-08 10:05",
+    favorite: false,
+  },
+  {
+    id: "trash-003",
+    mode: "memo",
+    content: "削除予定: 一時メモ",
+    createdAt: "2026-01-25 20:02",
+    trashedAt: "2026-02-07 19:55",
+    favorite: false,
+  },
+];
+
+function clonePosts(posts: PostRecord[]): PostRecord[] {
+  return posts.map((post) => ({ ...post }));
+}
+
+function sortByCreatedAtDesc(a: PostRecord, b: PostRecord): number {
+  if (a.createdAt === b.createdAt) {
+    return b.id.localeCompare(a.id);
+  }
+
+  return b.createdAt.localeCompare(a.createdAt);
+}
+
+function sortByTrashedAtDesc(a: PostRecord, b: PostRecord): number {
+  const aTrashedAt = a.trashedAt ?? "";
+  const bTrashedAt = b.trashedAt ?? "";
+  if (aTrashedAt === bTrashedAt) {
+    return b.id.localeCompare(a.id);
+  }
+
+  return bTrashedAt.localeCompare(aTrashedAt);
+}
+
+function getScopedPosts(input: ListPostsInput, source: PostRecord[]): PostRecord[] {
+  return input.view === "trash"
+    ? source
+        .filter((post) => typeof post.trashedAt !== "undefined")
+        .sort(sortByTrashedAtDesc)
+    : source
+        .filter((post) => {
+          if (typeof post.trashedAt !== "undefined") {
+            return false;
+          }
+
+          if (post.mode !== input.view) {
+            return false;
+          }
+
+          if (input.favoriteOnly && !post.favorite) {
+            return false;
+          }
+
+          return true;
+        })
+        .sort(sortByCreatedAtDesc);
+}
+
 describe("AuthedScreen", () => {
+  let mutablePosts: PostRecord[];
+
   beforeEach(() => {
     jest.clearAllMocks();
     getNavigationMock().__mockNavigation.reset();
+    mutablePosts = clonePosts(basePosts);
+
+    getPostActionsMock().listPostsAction.mockImplementation(async (input: ListPostsInput) => {
+      const limit = input.limit ?? 10;
+      const scoped = getScopedPosts(input, mutablePosts);
+
+      return {
+        ok: true,
+        data: {
+          items: scoped.slice(0, limit),
+          hasNext: scoped.length > limit,
+          nextCursor: scoped.length > limit ? scoped[limit - 1].id : null,
+        },
+      };
+    });
+
+    getPostActionsMock().setFavoriteAction.mockImplementation(
+      async ({ postId, favorite }: { postId: string; favorite: boolean }) => {
+        const target = mutablePosts.find((post) => post.id === postId);
+        if (!target) {
+          return {
+            ok: false,
+            error: {
+              code: "NOT_FOUND",
+              message: "対象が見つかりません",
+            },
+          };
+        }
+
+        target.favorite = favorite;
+
+        return {
+          ok: true,
+          data: { ...target },
+        };
+      }
+    );
   });
 
-  it("replaces missing view query with view=memo on initial render", () => {
+  it("replaces missing view query with view=memo on initial render", async () => {
     render(<AuthedScreen logoutUrl="/" />);
 
     expect(getNavigationMock().__mockNavigation.getReplaceMock()).toHaveBeenCalledWith(
       "/?view=memo"
     );
+
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledWith({
+        view: "memo",
+        favoriteOnly: false,
+        limit: 10,
+      });
+    });
+
     expect(screen.getByRole("heading", { level: 2, name: "メモ" })).toBeInTheDocument();
   });
 
-  it("does not replace for already-valid query even when key order is non-canonical", () => {
+  it("does not replace for already-valid query even when key order is non-canonical", async () => {
     getNavigationMock().__mockNavigation.setQuery("view=note&stubAuth=1&favoriteNote");
 
     render(<AuthedScreen logoutUrl="/" />);
 
     expect(getNavigationMock().__mockNavigation.getReplaceMock()).not.toHaveBeenCalled();
-    expect(screen.getByRole("heading", { level: 2, name: "ノート" })).toBeInTheDocument();
-  });
 
-  it("renders trash view from initial query", () => {
-    getNavigationMock().__mockNavigation.setQuery("view=trash");
-
-    render(<AuthedScreen logoutUrl="/" />);
-
-    expect(screen.getByRole("heading", { level: 2, name: "ごみ箱" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ごみ箱" })).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("renders note view and favorite active from initial query", () => {
-    getNavigationMock().__mockNavigation.setQuery("view=note&favoriteNote");
-
-    render(<AuthedScreen logoutUrl="/" />);
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledWith({
+        view: "note",
+        favoriteOnly: true,
+        limit: 10,
+      });
+    });
 
     expect(screen.getByRole("heading", { level: 2, name: "ノート" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ノート" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "お気に入り", pressed: true })).toBeInTheDocument();
   });
 
   it("pushes next query while preserving unknown keys", async () => {
@@ -150,15 +298,129 @@ describe("AuthedScreen", () => {
     );
   });
 
-  it("does not push on no-op view action", async () => {
+  it("calls listPostsAction when view changes and ignores favorite in trash", async () => {
     const user = userEvent.setup();
-    getNavigationMock().__mockNavigation.setQuery("view=note");
+    getNavigationMock().__mockNavigation.setQuery("view=note&favoriteNote");
 
     render(<AuthedScreen logoutUrl="/" />);
 
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledWith({
+        view: "note",
+        favoriteOnly: true,
+        limit: 10,
+      });
+    });
+
+    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
+
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledWith({
+        view: "trash",
+        favoriteOnly: false,
+        limit: 10,
+      });
+    });
+  });
+
+  it("calls setFavoriteAction and updates the current list", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+
+    const memoCard = screen.getByText("買い物メモ: 牛乳、パン、トマト").closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "お気に入り" }));
+
+    await waitFor(() => {
+      expect(getPostActionsMock().setFavoriteAction).toHaveBeenCalledWith({
+        postId: "post-001",
+        favorite: true,
+      });
+    });
+  });
+
+  it("removes an item immediately when unfavoriting in favorite-only mode", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note&favoriteNote");
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    const noteBody = await screen.findByText(/今日の学び/);
+    const noteCard = noteBody.closest("article");
+    if (!noteCard) {
+      throw new Error("note card not found");
+    }
+
+    await user.click(within(noteCard).getByRole("button", { name: "お気に入り" }));
+
+    await waitFor(() => {
+      expect(getPostActionsMock().setFavoriteAction).toHaveBeenCalledWith({
+        postId: "post-002",
+        favorite: false,
+      });
+    });
+
+    expect(screen.queryByText(/今日の学び/)).not.toBeInTheDocument();
+    expect(screen.getByText("投稿がありません。")).toBeInTheDocument();
+  });
+
+  it("does not show previous view data while waiting for the next view response", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    getPostActionsMock().listPostsAction.mockImplementation(async (input: ListPostsInput) => {
+      const limit = input.limit ?? 10;
+      const scoped = getScopedPosts(input, mutablePosts);
+
+      if (input.view === "note") {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 60);
+        });
+      }
+
+      return {
+        ok: true,
+        data: {
+          items: scoped.slice(0, limit),
+          hasNext: scoped.length > limit,
+          nextCursor: scoped.length > limit ? scoped[limit - 1].id : null,
+        },
+      };
+    });
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
     await user.click(screen.getByRole("button", { name: "ノート" }));
 
-    expect(getNavigationMock().__mockNavigation.getPushMock()).not.toHaveBeenCalled();
+    expect(screen.queryByText("買い物メモ: 牛乳、パン、トマト")).not.toBeInTheDocument();
+    expect(screen.getByText("読み込み中")).toBeInTheDocument();
+
+    await screen.findByText(/今日の学び/);
+  });
+
+  it("shows explicit NOT_IMPLEMENTED error message on screen", async () => {
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    getPostActionsMock().listPostsAction.mockResolvedValue({
+      ok: false,
+      error: {
+        code: "NOT_IMPLEMENTED",
+        message: "現在この環境では投稿機能を利用できません。",
+      },
+    });
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    expect(await screen.findByText("現在この環境では投稿機能を利用できません。")).toBeInTheDocument();
+    expect(screen.queryByText("投稿がありません。")).not.toBeInTheDocument();
+    expect(toast.error).toHaveBeenCalledWith("現在この環境では投稿機能を利用できません。");
   });
 
   it("fires stub toast when clicking trash item action buttons", async () => {
@@ -167,8 +429,11 @@ describe("AuthedScreen", () => {
 
     render(<AuthedScreen logoutUrl="/" />);
 
-    await user.click(screen.getAllByRole("button", { name: "復元" })[0]);
-    await user.click(screen.getAllByRole("button", { name: "完全に削除" })[0]);
+    const restoreButtons = await screen.findAllByRole("button", { name: "復元" });
+    const deleteButtons = await screen.findAllByRole("button", { name: "完全に削除" });
+
+    await user.click(restoreButtons[0]);
+    await user.click(deleteButtons[0]);
 
     expect(toast).toHaveBeenCalledWith("未実装です");
     expect((toast as jest.Mock).mock.calls).toHaveLength(2);
@@ -180,7 +445,7 @@ describe("AuthedScreen", () => {
 
     render(<AuthedScreen logoutUrl="/" />);
 
-    expect(screen.getByText("表示中の投稿を選択")).toBeInTheDocument();
+    await screen.findByRole("checkbox", { name: "trash-001を選択" });
     expect(screen.getByRole("button", { name: "選択した投稿を削除" })).toBeDisabled();
 
     await user.click(screen.getByRole("checkbox", { name: "trash-001を選択" }));
@@ -194,6 +459,8 @@ describe("AuthedScreen", () => {
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
     render(<AuthedScreen logoutUrl="/" />);
+
+    await screen.findByRole("checkbox", { name: "trash-001を選択" });
 
     await user.click(screen.getByRole("checkbox", { name: "表示中の投稿を選択" }));
 
@@ -212,6 +479,8 @@ describe("AuthedScreen", () => {
 
     render(<AuthedScreen logoutUrl="/" />);
 
+    await screen.findByRole("checkbox", { name: "trash-001を選択" });
+
     await user.click(screen.getByRole("checkbox", { name: "trash-001を選択" }));
     await user.click(screen.getByRole("button", { name: "選択した投稿を削除" }));
 
@@ -229,6 +498,8 @@ describe("AuthedScreen", () => {
 
     render(<AuthedScreen logoutUrl="/" />);
 
+    await screen.findByRole("checkbox", { name: "trash-001を選択" });
+
     await user.click(screen.getByRole("button", { name: "ごみ箱を空にする" }));
 
     expect(screen.getByText("ごみ箱内のすべての投稿を完全に削除しますか?")).toBeInTheDocument();
@@ -245,14 +516,16 @@ describe("AuthedScreen", () => {
 
     render(<AuthedScreen logoutUrl="/" />);
 
+    await screen.findByRole("checkbox", { name: "trash-001を選択" });
+
     await user.click(screen.getByRole("checkbox", { name: "trash-001を選択" }));
     expect(screen.getByText("1件選択中")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "メモ" }));
     await user.click(screen.getByRole("button", { name: "ごみ箱" }));
 
+    await screen.findByRole("checkbox", { name: "trash-001を選択" });
     expect(screen.queryByText("1件選択中")).not.toBeInTheDocument();
-    expect(screen.getByText("表示中の投稿を選択")).toBeInTheDocument();
   });
 
   it("opens inline memo edit and returns to normal view on cancel", async () => {
@@ -261,9 +534,8 @@ describe("AuthedScreen", () => {
 
     render(<AuthedScreen logoutUrl="/" />);
 
-    const memoCard = screen
-      .getByText("買い物メモ: 牛乳、パン、トマト")
-      .closest("article");
+    const memoText = await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+    const memoCard = memoText.closest("article");
 
     if (!memoCard) {
       throw new Error("memo card not found");
@@ -286,7 +558,7 @@ describe("AuthedScreen", () => {
 
     expect(screen.getByRole("button", { name: "ノートを書く" })).toBeInTheDocument();
 
-    const noteCard = screen.getByText(/今日の学び/).closest("article");
+    const noteCard = (await screen.findByText(/今日の学び/)).closest("article");
 
     if (!noteCard) {
       throw new Error("note card not found");

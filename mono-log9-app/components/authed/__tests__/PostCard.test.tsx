@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 
 import PostCard from "@/components/authed/PostCard";
-import type { StubPost } from "@/components/authed/stubs";
+import type { PostRecord } from "@/lib/posts/types";
 import { sanitizeRichHtml } from "@/lib/sanitizeRichHtml";
 
 jest.mock("@/lib/sanitizeRichHtml", () => {
@@ -30,7 +30,7 @@ describe("PostCard", () => {
   });
 
   it("renders sanitized html for note body", () => {
-    const post: StubPost = {
+    const post: PostRecord = {
       id: "note-001",
       mode: "note",
       content:
@@ -60,7 +60,7 @@ describe("PostCard", () => {
   });
 
   it("prioritizes note title display when title exists", () => {
-    const post: StubPost = {
+    const post: PostRecord = {
       id: "note-002",
       mode: "note",
       title: "ノートタイトル",
@@ -82,7 +82,7 @@ describe("PostCard", () => {
   });
 
   it("falls back to plain text rendering for non-html note content", () => {
-    const post: StubPost = {
+    const post: PostRecord = {
       id: "note-003",
       mode: "note",
       content: "## 見出し\n- 箇条書き1\n- 箇条書き2",
@@ -109,7 +109,7 @@ describe("PostCard", () => {
 
   it("renders empty safe output when sanitizer returns empty string", () => {
     sanitizeRichHtmlMock.mockReturnValue("");
-    const post: StubPost = {
+    const post: PostRecord = {
       id: "note-004",
       mode: "note",
       content: '<script>alert("xss")</script><h2>見出し</h2>',

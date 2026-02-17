@@ -6,12 +6,12 @@ import { toast } from "sonner";
 
 import MemoEditor from "@/components/authed/MemoEditor";
 import { Button } from "@/components/ui/button";
-import type { StubPost } from "@/components/authed/stubs";
+import type { PostRecord } from "@/lib/posts/types";
 import { sanitizeRichHtml } from "@/lib/sanitizeRichHtml";
 import { cn } from "@/lib/utils";
 
 type PostCardProps = {
-  post: StubPost;
+  post: PostRecord;
   onToggleFavorite: (postId: string) => void;
   onEdit: (postId: string) => void;
   isMemoEditing?: boolean;
@@ -51,7 +51,6 @@ export default function PostCard({
 
   const handleFavorite = () => {
     onToggleFavorite(post.id);
-    toast("未実装です");
   };
 
   if (!isNote && isMemoEditing) {

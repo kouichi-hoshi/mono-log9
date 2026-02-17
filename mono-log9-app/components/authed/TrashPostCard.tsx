@@ -1,11 +1,11 @@
 "use client";
 
-import type { StubTrashPost } from "@/components/authed/stubs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import type { PostRecord } from "@/lib/posts/types";
 
 type TrashPostCardProps = {
-  post: StubTrashPost;
+  post: PostRecord;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   onRestore: (postId: string) => void;

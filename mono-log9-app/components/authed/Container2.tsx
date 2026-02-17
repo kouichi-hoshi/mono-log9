@@ -4,18 +4,21 @@ import LoadingStates from "@/components/authed/LoadingStates";
 import PostCard from "@/components/authed/PostCard";
 import TrashBulkActions from "@/components/authed/TrashBulkActions";
 import TrashPostCard from "@/components/authed/TrashPostCard";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import type { StubPost, StubTrashPost, ViewMode } from "@/components/authed/stubs";
+import type { ViewMode } from "@/components/authed/stubs";
+import type { PostRecord } from "@/lib/posts/types";
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
-import { toast } from "sonner";
 
 type Container2Props = {
   mode: ViewMode;
   isTrashView: boolean;
   favoriteOnly: boolean;
-  posts: StubPost[];
-  trashPosts: StubTrashPost[];
+  posts: PostRecord[];
+  trashPosts: PostRecord[];
+  isLoading: boolean;
+  errorMessage: string | null;
   onFavoriteToggle: () => void;
   onToggleFavorite: (postId: string) => void;
   onEdit: (postId: string) => void;
@@ -40,6 +43,8 @@ export default function Container2({
   favoriteOnly,
   posts,
   trashPosts,
+  isLoading,
+  errorMessage,
   onFavoriteToggle,
   onToggleFavorite,
   onEdit,
@@ -57,11 +62,6 @@ export default function Container2({
   onRestoreTrashPostStub,
   onPermanentDeleteTrashPostStub,
 }: Container2Props) {
-  const handleFavoriteToggle = () => {
-    onFavoriteToggle();
-    toast("未実装です");
-  };
-
   const hasSelection = selectedTrashPostIds.size > 0;
   const handleToggleSelectAll = () => {
     if (hasSelection) {
@@ -82,7 +82,7 @@ export default function Container2({
             variant="outline"
             size="sm"
             className={cn("ml-auto gap-2", favoriteOnly && "border-amber-400 text-amber-500")}
-            onClick={handleFavoriteToggle}
+            onClick={onFavoriteToggle}
             aria-pressed={favoriteOnly}
           >
             <Star className={cn("h-4 w-4", favoriteOnly && "fill-amber-400")} />
@@ -129,7 +129,16 @@ export default function Container2({
             ))}
       </div>
 
-      <LoadingStates showEmpty={isTrashView ? trashPosts.length === 0 : posts.length === 0} showSkeleton />
+      {errorMessage && (
+        <Alert variant="destructive">
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
+
+      <LoadingStates
+        showEmpty={!errorMessage && (isTrashView ? trashPosts.length === 0 : posts.length === 0)}
+        showSkeleton={isLoading}
+      />
     </section>
   );
 }

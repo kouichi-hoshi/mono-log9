@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import type { PostMode } from "@/components/authed/stubs";
+import type { PostMode } from "@/lib/posts/types";
 
 type PostEditorProps = {
   mode: PostMode;
