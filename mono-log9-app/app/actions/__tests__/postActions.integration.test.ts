@@ -36,4 +36,27 @@ describe("postActions integration", () => {
 
     expect(result).toMatchObject({ ok: true });
   });
+
+  it("creates note with blockquote content", async () => {
+    const result = await createPostAction({
+      mode: "note",
+      title: "E2E Quote Save",
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "blockquote",
+            content: [
+              {
+                type: "paragraph",
+                content: [{ type: "text", text: "引用本文" }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(result).toMatchObject({ ok: true });
+  });
 });

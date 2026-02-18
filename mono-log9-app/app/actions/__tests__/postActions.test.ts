@@ -162,6 +162,15 @@ describe("postActions", () => {
           ],
         },
         {
+          type: "blockquote",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "引用本文" }],
+            },
+          ],
+        },
+        {
           type: "orderedList",
           content: [
             {

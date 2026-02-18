@@ -2,12 +2,14 @@ import { sanitizeRichHtml } from "@/lib/sanitizeRichHtml";
 
 describe("sanitizeRichHtml", () => {
   it("keeps allowed tags and removes forbidden tags", () => {
-    const html = "<h2>見出し</h2><p>本文<script>alert(1)</script></p><img src=x />";
+    const html =
+      "<h2>見出し</h2><blockquote><p>引用本文</p></blockquote><p>本文<script>alert(1)</script></p><img src=x />";
 
     const sanitized = sanitizeRichHtml(html);
     const doc = new DOMParser().parseFromString(sanitized, "text/html");
 
     expect(doc.querySelector("h2")?.textContent).toBe("見出し");
+    expect(doc.querySelector("blockquote")?.textContent).toContain("引用本文");
     expect(doc.querySelector("script")).toBeNull();
     expect(doc.querySelector("img")).toBeNull();
   });

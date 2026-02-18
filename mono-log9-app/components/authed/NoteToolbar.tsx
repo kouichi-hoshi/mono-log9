@@ -70,6 +70,12 @@ export default function NoteToolbar({ editor, onLinkClick, onUnlinkClick }: Note
         onClick={() => editor?.chain().focus().toggleOrderedList().run()}
       />
       <ToolbarButton
+        label="引用"
+        disabled={!hasEditor}
+        active={editor?.isActive("blockquote")}
+        onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+      />
+      <ToolbarButton
         label="太字"
         disabled={!hasEditor}
         active={editor?.isActive("bold")}

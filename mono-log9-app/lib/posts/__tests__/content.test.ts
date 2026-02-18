@@ -37,6 +37,15 @@ describe("post content helpers", () => {
         type: "doc",
         content: [
           {
+            type: "blockquote",
+            content: [
+              {
+                type: "paragraph",
+                content: [{ type: "text", text: "引用本文" }],
+              },
+            ],
+          },
+          {
             type: "paragraph",
             content: [
               {
@@ -90,6 +99,18 @@ describe("post content helpers", () => {
             type: "paragraph",
             marks: [{ type: "bold" }],
             content: [{ type: "text", text: "invalid mark target" }],
+          },
+        ],
+      })
+    ).toThrow(expect.objectContaining({ code: "VALIDATION_ERROR" }));
+
+    expect(() =>
+      assertValidPostContent({
+        type: "doc",
+        content: [
+          {
+            type: "blockquote",
+            content: [{ type: "text", text: "invalid blockquote child" }],
           },
         ],
       })

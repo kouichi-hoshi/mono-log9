@@ -9,6 +9,7 @@ type ChainMock = {
   toggleHeading: jest.Mock;
   toggleBulletList: jest.Mock;
   toggleOrderedList: jest.Mock;
+  toggleBlockquote: jest.Mock;
   toggleBold: jest.Mock;
   run: jest.Mock;
 };
@@ -20,6 +21,7 @@ function createEditorMock(): { editor: Editor; chain: ChainMock } {
   chain.toggleHeading = jest.fn(() => chain as ChainMock);
   chain.toggleBulletList = jest.fn(() => chain as ChainMock);
   chain.toggleOrderedList = jest.fn(() => chain as ChainMock);
+  chain.toggleBlockquote = jest.fn(() => chain as ChainMock);
   chain.toggleBold = jest.fn(() => chain as ChainMock);
   chain.run = jest.fn(() => true);
 
@@ -32,7 +34,7 @@ function createEditorMock(): { editor: Editor; chain: ChainMock } {
 }
 
 describe("NoteToolbar", () => {
-  it("calls heading/list/bold commands from toolbar", async () => {
+  it("calls heading/list/blockquote/bold commands from toolbar", async () => {
     const user = userEvent.setup();
     const { editor, chain } = createEditorMock();
 
@@ -47,11 +49,13 @@ describe("NoteToolbar", () => {
     await user.click(screen.getByRole("button", { name: "H2" }));
     await user.click(screen.getByRole("button", { name: "箇条書き" }));
     await user.click(screen.getByRole("button", { name: "番号付き" }));
+    await user.click(screen.getByRole("button", { name: "引用" }));
     await user.click(screen.getByRole("button", { name: "太字" }));
 
     expect(chain.toggleHeading).toHaveBeenCalledWith({ level: 2 });
     expect(chain.toggleBulletList).toHaveBeenCalled();
     expect(chain.toggleOrderedList).toHaveBeenCalled();
+    expect(chain.toggleBlockquote).toHaveBeenCalled();
     expect(chain.toggleBold).toHaveBeenCalled();
   });
 

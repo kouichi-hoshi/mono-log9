@@ -58,6 +58,15 @@ describe("PostCard", () => {
             ],
           },
           {
+            type: "blockquote",
+            content: [
+              {
+                type: "paragraph",
+                content: [{ type: "text", text: "引用本文" }],
+              },
+            ],
+          },
+          {
             type: "paragraph",
             content: [
               {
@@ -87,6 +96,7 @@ describe("PostCard", () => {
 
     expect(within(content).getByRole("heading", { level: 2, name: "見出し" })).toBeInTheDocument();
     expect(content.querySelector("ul")).not.toBeNull();
+    expect(content.querySelector("blockquote")?.textContent).toContain("引用本文");
     expect(content.querySelector("strong")?.textContent).toBe("項目");
 
     const link = within(content).getByRole("link", { name: "参考" });

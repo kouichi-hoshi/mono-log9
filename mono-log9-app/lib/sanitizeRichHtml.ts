@@ -1,6 +1,6 @@
 import DOMPurify from "dompurify";
 
-const ALLOWED_TAGS = ["h2", "h3", "h4", "p", "ul", "ol", "li", "strong", "a", "br"];
+const ALLOWED_TAGS = ["h2", "h3", "h4", "p", "blockquote", "ul", "ol", "li", "strong", "a", "br"];
 const ALLOWED_ATTR = ["href", "target", "rel"];
 
 type PurifyLike = {

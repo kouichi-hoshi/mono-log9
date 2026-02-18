@@ -12,6 +12,7 @@ const ALLOWED_NODE_TYPES = new Set([
   "doc",
   "paragraph",
   "heading",
+  "blockquote",
   "bulletList",
   "orderedList",
   "listItem",
@@ -21,10 +22,22 @@ const ALLOWED_NODE_TYPES = new Set([
 
 const ALLOWED_MARK_TYPES = new Set(["bold", "link"]);
 const BLOCK_END_NODE_TYPES = new Set(["paragraph", "heading", "listItem"]);
-const ROOT_CHILD_NODE_TYPES = new Set(["paragraph", "heading", "bulletList", "orderedList"]);
+const ROOT_CHILD_NODE_TYPES = new Set([
+  "paragraph",
+  "heading",
+  "blockquote",
+  "bulletList",
+  "orderedList",
+]);
 const INLINE_NODE_TYPES = new Set(["text", "hardBreak"]);
 const LIST_NODE_TYPES = new Set(["listItem"]);
 const LIST_ITEM_CHILD_NODE_TYPES = new Set(["paragraph", "heading", "bulletList", "orderedList"]);
+const BLOCKQUOTE_CHILD_NODE_TYPES = new Set([
+  "paragraph",
+  "heading",
+  "bulletList",
+  "orderedList",
+]);
 
 type JsonRecord = Record<string, unknown>;
 
@@ -189,6 +202,11 @@ function validateNode(node: unknown, isRoot: boolean) {
     }
 
     validateChildren(node.content, INLINE_NODE_TYPES);
+    return;
+  }
+
+  if (node.type === "blockquote") {
+    validateChildren(node.content, BLOCKQUOTE_CHILD_NODE_TYPES);
     return;
   }
 
