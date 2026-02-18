@@ -96,6 +96,40 @@ describe("post content helpers", () => {
     ).toThrow(expect.objectContaining({ code: "VALIDATION_ERROR" }));
   });
 
+  it("accepts nullable optional fields coming through serialization boundaries", () => {
+    expect(() =>
+      assertValidPostContent({
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 2 },
+            content: [{ type: "text", text: "見出し", marks: null }],
+          },
+          {
+            type: "paragraph",
+            content: null,
+          },
+        ],
+      })
+    ).not.toThrow();
+  });
+
+  it("accepts heading level serialized as string", () => {
+    expect(() =>
+      assertValidPostContent({
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: "2" },
+            content: [{ type: "text", text: "見出し" }],
+          },
+        ],
+      })
+    ).not.toThrow();
+  });
+
   it("validates derived content text lengths by mode", () => {
     expect(() => assertContentTextByMode("a".repeat(281), "memo")).toThrow(
       expect.objectContaining({ code: "VALIDATION_ERROR" })

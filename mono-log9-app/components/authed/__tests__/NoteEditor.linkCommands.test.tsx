@@ -103,7 +103,12 @@ describe("NoteEditor link commands", () => {
 
     const starterKit = extensionByName.get("starterKit");
     expect(starterKit).toBeDefined();
+    expect(starterKit?.options?.blockquote).toBe(false);
+    expect(starterKit?.options?.code).toBe(false);
+    expect(starterKit?.options?.codeBlock).toBe(false);
     expect(starterKit?.options?.heading).toEqual({ levels: [2, 3, 4] });
+    expect(starterKit?.options?.horizontalRule).toBe(false);
+    expect(starterKit?.options?.italic).toBe(false);
     expect(starterKit?.options?.link).toEqual(
       expect.objectContaining({
         openOnClick: false,
@@ -111,6 +116,7 @@ describe("NoteEditor link commands", () => {
         linkOnPaste: true,
       })
     );
+    expect(starterKit?.options?.strike).toBe(false);
 
     expect(extensionByName.get("headingShortcutExtension")).toBeDefined();
   });

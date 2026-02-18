@@ -138,13 +138,19 @@ function validateNode(node: unknown, isRoot: boolean) {
       throwValidationError();
     }
 
-    const level = node.attrs.level;
-    if (level !== 2 && level !== 3 && level !== 4) {
+    const rawLevel = node.attrs.level;
+    const normalizedLevel =
+      typeof rawLevel === "string" ? Number.parseInt(rawLevel, 10) : rawLevel;
+    if (normalizedLevel !== 2 && normalizedLevel !== 3 && normalizedLevel !== 4) {
       throwValidationError();
+    }
+
+    if (rawLevel !== normalizedLevel) {
+      node.attrs.level = normalizedLevel;
     }
   }
 
-  if (typeof node.marks !== "undefined") {
+  if (node.marks != null) {
     if (node.type !== "text") {
       throwValidationError();
     }
@@ -159,14 +165,14 @@ function validateNode(node: unknown, isRoot: boolean) {
   }
 
   if (node.type === "text") {
-    if (typeof node.text !== "string" || typeof node.content !== "undefined") {
+    if (typeof node.text !== "string" || node.content != null) {
       throwValidationError();
     }
     return;
   }
 
   if (node.type === "hardBreak") {
-    if (typeof node.content !== "undefined") {
+    if (node.content != null) {
       throwValidationError();
     }
     return;
@@ -178,7 +184,7 @@ function validateNode(node: unknown, isRoot: boolean) {
   }
 
   if (node.type === "paragraph" || node.type === "heading") {
-    if (typeof node.content === "undefined") {
+    if (node.content == null) {
       return;
     }
 

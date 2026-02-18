@@ -60,14 +60,20 @@ export default function NoteEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
+        blockquote: false,
+        code: false,
+        codeBlock: false,
         heading: {
           levels: [2, 3, 4],
         },
+        horizontalRule: false,
+        italic: false,
         link: {
           openOnClick: false,
           autolink: true,
           linkOnPaste: true,
         },
+        strike: false,
       }),
       Placeholder.configure({
         placeholder: "ノートを書く",

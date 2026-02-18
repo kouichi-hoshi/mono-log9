@@ -35,7 +35,7 @@ import {
   normalizeAuthedQuery,
   toRootPath,
 } from "@/lib/authedQueryState";
-import { createDocFromPlainText } from "@/lib/posts/content";
+import { clonePostContent, createDocFromPlainText } from "@/lib/posts/content";
 import type { ListPostsResult, PostContent, PostRecord, PostView } from "@/lib/posts/types";
 
 type AuthedScreenProps = {
@@ -365,6 +365,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       });
 
       if (!result.ok) {
+        console.log("[AuthedScreen] note save failed", result.error, draft.contentJson);
         toast.error(result.error.message);
         return false;
       }
@@ -388,18 +389,19 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       if (!draft.contentJson) {
         return false;
       }
+      const serializedContent = clonePostContent(draft.contentJson);
 
       const result =
         noteModalMode === "edit" && editingNotePostId
           ? await updatePostAction({
               postId: editingNotePostId,
               title: draft.title,
-              content: draft.contentJson,
+              content: serializedContent,
             })
           : await createPostAction({
               mode: "note",
               title: draft.title,
-              content: draft.contentJson,
+              content: serializedContent,
             });
 
       if (!result.ok) {

@@ -6,7 +6,7 @@ import {
   setFavoriteAction,
   updatePostAction,
 } from "@/app/actions/postActions";
-import { createDocFromPlainText } from "@/lib/posts/content";
+import { createDocFromPlainText, extractContentText } from "@/lib/posts/content";
 import { PostRepositoryError } from "@/lib/posts/errors";
 import { postRepository } from "@/lib/posts/postRepository";
 
@@ -127,6 +127,88 @@ describe("postActions", () => {
       content: {
         type: "doc",
         content: [{ type: "text", text: "invalid root child" }],
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "入力内容に不備があります",
+      },
+    });
+    expect(getRepositoryMock().createPost).not.toHaveBeenCalled();
+  });
+
+  it("accepts rich note content with allowed nodes and marks", async () => {
+    const content = {
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "見出し" }],
+        },
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "太字", marks: [{ type: "bold" }] },
+            { type: "text", text: "と" },
+            {
+              type: "text",
+              text: "リンク",
+              marks: [{ type: "link", attrs: { href: "https://example.com/" } }],
+            },
+          ],
+        },
+        {
+          type: "orderedList",
+          content: [
+            {
+              type: "listItem",
+              content: [{ type: "paragraph", content: [{ type: "text", text: "項目1" }] }],
+            },
+          ],
+        },
+      ],
+    } as const;
+
+    getRepositoryMock().createPost.mockResolvedValue({
+      id: "post-200",
+      mode: "note",
+      title: "タイトル",
+      content,
+      contentText: extractContentText(content, "note"),
+      favorite: false,
+      createdAt: "2026-02-18 10:00",
+    });
+
+    const result = await createPostAction({
+      mode: "note",
+      title: " タイトル ",
+      content,
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(getRepositoryMock().createPost).toHaveBeenCalledWith({
+      mode: "note",
+      title: "タイトル",
+      content,
+      contentText: extractContentText(content, "note"),
+    });
+  });
+
+  it("returns VALIDATION_ERROR for disallowed mark", async () => {
+    const result = await createPostAction({
+      mode: "note",
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "italic", marks: [{ type: "italic" }] }],
+          },
+        ],
       },
     });
 
