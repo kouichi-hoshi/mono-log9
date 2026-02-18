@@ -1,16 +1,16 @@
 "use client";
 
-import * as React from "react";
+import type { QueryKey } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
+import * as React from "react";
 import { toast } from "sonner";
 
 import {
   createPostAction,
-  listPostsAction,
   moveToTrashAction,
   restoreFromTrashAction,
   setFavoriteAction,
-  type ActionResult,
   updatePostAction,
 } from "@/app/actions/postActions";
 import Container1 from "@/components/authed/Container1";
@@ -36,19 +36,27 @@ import {
   toRootPath,
 } from "@/lib/authedQueryState";
 import { clonePostContent, createDocFromPlainText } from "@/lib/posts/content";
-import type { ListPostsResult, PostContent, PostRecord, PostView } from "@/lib/posts/types";
+import {
+  flattenInfiniteItems,
+  rebuildInfiniteData,
+  type PostsInfiniteData,
+} from "@/lib/posts/infiniteData";
+import {
+  normalizePostsListCondition,
+  postsListQueryKey,
+  type PostsListCondition,
+} from "@/lib/posts/queryKeys";
+import {
+  getScrollStorageKey,
+  readScrollPosition,
+  restoreScrollPosition,
+  saveScrollPosition,
+} from "@/lib/posts/scrollRestoration";
+import type { PostContent, PostRecord, PostView } from "@/lib/posts/types";
+import { PostsListQueryError, usePostsInfiniteQuery } from "@/lib/posts/usePostsInfiniteQuery";
 
 type AuthedScreenProps = {
   logoutUrl: string;
-};
-
-type ListState = {
-  view: PostView | null;
-  isLoading: boolean;
-  items: PostRecord[];
-  nextCursor: string | null;
-  hasNext: boolean;
-  error: { code: string; message: string } | null;
 };
 
 function sortByCreatedAtDesc(a: PostRecord, b: PostRecord): number {
@@ -70,37 +78,82 @@ function sortByTrashedAtDesc(a: PostRecord, b: PostRecord): number {
   return bTrashedAt.localeCompare(aTrashedAt);
 }
 
-const INITIAL_LIST_STATE: ListState = {
-  view: null,
-  isLoading: true,
-  items: [],
-  nextCursor: null,
-  hasNext: false,
-  error: null,
-};
+function toErrorMessage(error: unknown): string | null {
+  if (error instanceof PostsListQueryError) {
+    return error.message;
+  }
 
-function toFailedState(
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return null;
+}
+
+function upsertForCurrentView(
+  items: PostRecord[],
+  updated: PostRecord,
   view: PostView,
-  result: Extract<ActionResult<ListPostsResult>, { ok: false }>
-): ListState {
-  return {
-    view,
-    isLoading: false,
-    items: [],
-    nextCursor: null,
-    hasNext: false,
-    error: result.error,
-  };
+  favoriteOnly: boolean
+): PostRecord[] {
+  if (view === "trash") {
+    if (typeof updated.trashedAt === "undefined") {
+      return items.filter((item) => item.id !== updated.id);
+    }
+
+    return [updated, ...items.filter((item) => item.id !== updated.id)].sort(sortByTrashedAtDesc);
+  }
+
+  const isVisibleModePost = updated.mode === view && typeof updated.trashedAt === "undefined";
+  const canDisplay = isVisibleModePost && (!favoriteOnly || updated.favorite);
+
+  if (!canDisplay) {
+    return items.filter((item) => item.id !== updated.id);
+  }
+
+  return [updated, ...items.filter((item) => item.id !== updated.id)].sort(sortByCreatedAtDesc);
+}
+
+function formatNowDate(): string {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+function parsePostsListConditionFromQueryKey(key: QueryKey): PostsListCondition | null {
+  if (!Array.isArray(key) || key.length < 2 || key[0] !== "posts") {
+    return null;
+  }
+
+  const condition = key[1];
+  if (!condition || typeof condition !== "object") {
+    return null;
+  }
+
+  const view = (condition as { view?: unknown }).view;
+  const favoriteOnly = (condition as { favoriteOnly?: unknown }).favoriteOnly;
+  if (view !== "memo" && view !== "note" && view !== "trash") {
+    return null;
+  }
+
+  if (typeof favoriteOnly !== "boolean") {
+    return null;
+  }
+
+  return normalizePostsListCondition({ view, favoriteOnly });
 }
 
 export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+
   const queryString = searchParams.toString();
-  const normalizedQuery = React.useMemo(
-    () => normalizeAuthedQuery(queryString),
-    [queryString]
-  );
+  const normalizedQuery = React.useMemo(() => normalizeAuthedQuery(queryString), [queryString]);
   const isTrashView = normalizedQuery.state.view === "trash";
   const mode: ViewMode = normalizedQuery.state.activeMode ?? "memo";
   const favoriteOnly = isTrashView
@@ -109,7 +162,18 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       ? normalizedQuery.state.favoriteMemo
       : normalizedQuery.state.favoriteNote;
 
-  const [listState, setListState] = React.useState<ListState>(INITIAL_LIST_STATE);
+  const listCondition = React.useMemo<PostsListCondition>(
+    () =>
+      normalizePostsListCondition({
+        view: normalizedQuery.state.view,
+        favoriteOnly,
+      }),
+    [favoriteOnly, normalizedQuery.state.view]
+  );
+
+  const queryKey = React.useMemo(() => postsListQueryKey(listCondition), [listCondition]);
+  const listQuery = usePostsInfiniteQuery(listCondition, { enabled: !normalizedQuery.changed });
+
   const [memoDraft, setMemoDraft] = React.useState("");
   const [editingMemoPostId, setEditingMemoPostId] = React.useState<string | null>(null);
   const [editingMemoValue, setEditingMemoValue] = React.useState("");
@@ -122,80 +186,254 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   );
   const [noteModalInitialPlainText, setNoteModalInitialPlainText] = React.useState("");
   const [editingNotePostId, setEditingNotePostId] = React.useState<string | null>(null);
-  const [selectedTrashPostIds, setSelectedTrashPostIds] = React.useState<Set<string>>(
-    () => new Set()
-  );
+  const [selectedTrashPostIds, setSelectedTrashPostIds] = React.useState<Set<string>>(() => new Set());
   const [deleteDialogMode, setDeleteDialogMode] = React.useState<"selected" | "all" | null>(null);
 
-  const visibleItems = React.useMemo(
-    () => (listState.view === normalizedQuery.state.view ? listState.items : []),
-    [listState.items, listState.view, normalizedQuery.state.view]
-  );
-  const posts = React.useMemo(
-    () => (isTrashView ? [] : visibleItems),
-    [isTrashView, visibleItems]
-  );
-  const trashPosts = React.useMemo(
-    () => (isTrashView ? visibleItems : []),
-    [isTrashView, visibleItems]
-  );
+  const [isRestoringScroll, setIsRestoringScroll] = React.useState(false);
+  const restoredScrollKeyRef = React.useRef<string | null>(null);
+  const skipCleanupScrollKeyRef = React.useRef<string | null>(null);
+  const isPopstateNavigationRef = React.useRef(false);
+  const hasUserScrolledRef = React.useRef(false);
+  const isProgrammaticScrollRef = React.useRef(false);
+  const loadMoreSentinelElementRef = React.useRef<HTMLDivElement | null>(null);
+
+  const visibleItems = React.useMemo(() => flattenInfiniteItems(listQuery.data), [listQuery.data]);
+  const posts = React.useMemo(() => (isTrashView ? [] : visibleItems), [isTrashView, visibleItems]);
+  const trashPosts = React.useMemo(() => (isTrashView ? visibleItems : []), [isTrashView, visibleItems]);
+
+  const initialErrorMessage =
+    !listQuery.data && listQuery.isError ? toErrorMessage(listQuery.error) : null;
+  const nextPageErrorMessage =
+    !!listQuery.data && listQuery.isFetchNextPageError ? toErrorMessage(listQuery.error) : null;
+
+  const isInitialLoading = !listQuery.data && (listQuery.isLoading || listQuery.isFetching);
+  const isNextPageLoading = listQuery.isFetchingNextPage;
+  const scrollStorageKey = React.useMemo(() => getScrollStorageKey(listCondition), [listCondition]);
+
+  const saveCurrentScroll = React.useCallback(() => {
+    skipCleanupScrollKeyRef.current = scrollStorageKey;
+    saveScrollPosition(listCondition);
+  }, [listCondition, scrollStorageKey]);
+
+  React.useEffect(() => {
+    const handlePopState = () => {
+      isPopstateNavigationRef.current = true;
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [scrollStorageKey]);
 
   React.useEffect(() => {
     if (!normalizedQuery.changed) {
       return;
     }
 
+    saveCurrentScroll();
     router.replace(toRootPath(normalizedQuery.nextQuery));
-  }, [normalizedQuery.changed, normalizedQuery.nextQuery, router]);
+  }, [normalizedQuery.changed, normalizedQuery.nextQuery, router, saveCurrentScroll]);
 
   React.useEffect(() => {
-    if (normalizedQuery.changed) {
+    restoredScrollKeyRef.current = null;
+    hasUserScrolledRef.current = false;
+  }, [scrollStorageKey]);
+
+  React.useEffect(() => {
+    if (normalizedQuery.changed || !listQuery.data) {
       return;
     }
 
-    let active = true;
+    if (restoredScrollKeyRef.current === scrollStorageKey) {
+      return;
+    }
 
-    setListState((current) => ({
-      ...current,
-      view: normalizedQuery.state.view,
-      isLoading: true,
-      items: [],
-      nextCursor: null,
-      hasNext: false,
-      error: null,
-    }));
+    isProgrammaticScrollRef.current = true;
+    setIsRestoringScroll(true);
 
-    void (async () => {
-      const result = await listPostsAction({
-        view: normalizedQuery.state.view,
-        favoriteOnly,
-        limit: 10,
+    return restoreScrollPosition(listCondition, () => {
+      restoredScrollKeyRef.current = scrollStorageKey;
+      hasUserScrolledRef.current = false;
+      setIsRestoringScroll(false);
+      window.requestAnimationFrame(() => {
+        isProgrammaticScrollRef.current = false;
       });
+    });
+  }, [listCondition, listQuery.data, normalizedQuery.changed, scrollStorageKey]);
 
-      if (!active) {
+  React.useEffect(() => {
+    const handleScroll = () => {
+      if (isRestoringScroll || isPopstateNavigationRef.current || isProgrammaticScrollRef.current) {
         return;
       }
 
-      if (!result.ok) {
-        setListState(toFailedState(normalizedQuery.state.view, result));
-        toast.error(result.error.message);
+      hasUserScrolledRef.current = true;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [isRestoringScroll]);
+
+  React.useEffect(() => {
+    return () => {
+      if (skipCleanupScrollKeyRef.current === scrollStorageKey) {
+        skipCleanupScrollKeyRef.current = null;
+        isPopstateNavigationRef.current = false;
         return;
       }
 
-      setListState({
-        view: normalizedQuery.state.view,
-        isLoading: false,
-        items: result.data.items,
-        nextCursor: result.data.nextCursor,
-        hasNext: result.data.hasNext,
-        error: null,
-      });
-    })();
+      if (isPopstateNavigationRef.current) {
+        const stored = readScrollPosition(listCondition);
+        if (
+          !hasUserScrolledRef.current &&
+          window.scrollY === 0 &&
+          stored !== null &&
+          stored > 0
+        ) {
+          isPopstateNavigationRef.current = false;
+          return;
+        }
+      }
+
+      saveScrollPosition(listCondition);
+      isPopstateNavigationRef.current = false;
+      if (hasUserScrolledRef.current) {
+        hasUserScrolledRef.current = false;
+      }
+    };
+  }, [listCondition, scrollStorageKey]);
+
+  React.useEffect(() => {
+    if (!initialErrorMessage) {
+      return;
+    }
+
+    toast.error(initialErrorMessage);
+  }, [initialErrorMessage]);
+
+  React.useEffect(() => {
+    if (!nextPageErrorMessage) {
+      return;
+    }
+
+    toast.error(nextPageErrorMessage);
+  }, [nextPageErrorMessage]);
+
+  const loadMoreSentinelRef = React.useCallback((element: HTMLDivElement | null) => {
+    loadMoreSentinelElementRef.current = element;
+  }, []);
+
+  React.useEffect(() => {
+    const target = loadMoreSentinelElementRef.current;
+
+    if (
+      !target ||
+      !listQuery.hasNextPage ||
+      isRestoringScroll ||
+      normalizedQuery.changed ||
+      Boolean(nextPageErrorMessage)
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      const shouldLoad = entries.some((entry) => entry.isIntersecting);
+      if (
+        !shouldLoad ||
+        listQuery.isFetchingNextPage ||
+        !listQuery.hasNextPage ||
+        isRestoringScroll ||
+        Boolean(nextPageErrorMessage)
+      ) {
+        return;
+      }
+
+      void listQuery.fetchNextPage();
+    });
+
+    observer.observe(target);
 
     return () => {
-      active = false;
+      observer.disconnect();
     };
-  }, [favoriteOnly, normalizedQuery.changed, normalizedQuery.state.view]);
+  }, [
+    isRestoringScroll,
+    listQuery,
+    listQuery.fetchNextPage,
+    listQuery.hasNextPage,
+    listQuery.isFetchingNextPage,
+    nextPageErrorMessage,
+    normalizedQuery.changed,
+  ]);
+
+  const updateCurrentQueryItems = React.useCallback(
+    (updater: (items: PostRecord[]) => PostRecord[]) => {
+      let updated = false;
+
+      queryClient.setQueryData<PostsInfiniteData>(queryKey, (current) => {
+        if (!current) {
+          return current;
+        }
+
+        updated = true;
+        const nextItems = updater(flattenInfiniteItems(current));
+        return rebuildInfiniteData(current, nextItems);
+      });
+
+      return updated;
+    },
+    [queryClient, queryKey]
+  );
+
+  const updateAllCachedPostLists = React.useCallback(
+    (updater: (condition: PostsListCondition, items: PostRecord[]) => PostRecord[]) => {
+      let updatedCount = 0;
+
+      const entries = queryClient.getQueriesData<PostsInfiniteData>({ queryKey: ["posts"] });
+      for (const [key, data] of entries) {
+        if (!data) {
+          continue;
+        }
+
+        const condition = parsePostsListConditionFromQueryKey(key);
+        if (!condition) {
+          continue;
+        }
+
+        queryClient.setQueryData<PostsInfiniteData>(key, (current) => {
+          if (!current) {
+            return current;
+          }
+
+          const nextItems = updater(condition, flattenInfiniteItems(current));
+          return rebuildInfiniteData(current, nextItems);
+        });
+        updatedCount += 1;
+      }
+
+      return updatedCount;
+    },
+    [queryClient]
+  );
+
+  const findInCachedPostLists = React.useCallback((postId: string): PostRecord | null => {
+    const entries = queryClient.getQueriesData<PostsInfiniteData>({ queryKey: ["posts"] });
+    for (const [, data] of entries) {
+      if (!data) {
+        continue;
+      }
+
+      const found = flattenInfiniteItems(data).find((post) => post.id === postId);
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  }, [queryClient]);
 
   const handleFavoriteFilterToggle = React.useCallback(() => {
     const next = buildQueryForFavoriteToggle(queryString);
@@ -203,8 +441,9 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       return;
     }
 
+    saveCurrentScroll();
     router.push(toRootPath(next.nextQuery));
-  }, [queryString, router]);
+  }, [queryString, router, saveCurrentScroll]);
 
   const handleModeChange = React.useCallback(
     (nextMode: ViewMode) => {
@@ -213,9 +452,10 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
         return;
       }
 
+      saveCurrentScroll();
       router.push(toRootPath(next.nextQuery));
     },
-    [queryString, router]
+    [queryString, router, saveCurrentScroll]
   );
 
   const handleTrashClick = React.useCallback(() => {
@@ -224,8 +464,9 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       return;
     }
 
+    saveCurrentScroll();
     router.push(toRootPath(next.nextQuery));
-  }, [queryString, router]);
+  }, [queryString, router, saveCurrentScroll]);
 
   React.useEffect(() => {
     if (!isTrashView) {
@@ -235,7 +476,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
 
   const handleToggleFavorite = React.useCallback(
     async (postId: string) => {
-      const target = listState.items.find((post) => post.id === postId);
+      const target = visibleItems.find((post) => post.id === postId);
       if (!target) {
         return;
       }
@@ -250,9 +491,8 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
         return;
       }
 
-      setListState((current) => ({
-        ...current,
-        items: current.items.flatMap((post) => {
+      updateCurrentQueryItems((items) =>
+        items.flatMap((post) => {
           if (post.id !== result.data.id) {
             return [post];
           }
@@ -262,10 +502,10 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
           }
 
           return [{ ...post, favorite: result.data.favorite }];
-        }),
-      }));
+        })
+      );
     },
-    [favoriteOnly, listState.items]
+    [favoriteOnly, updateCurrentQueryItems, visibleItems]
   );
 
   const handleOpenNoteCreate = React.useCallback(() => {
@@ -302,39 +542,15 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
 
   const upsertPostInVisibleList = React.useCallback(
     (updated: PostRecord) => {
-      setListState((current) => {
-        if (current.view !== normalizedQuery.state.view) {
-          return current;
-        }
+      const changed = updateCurrentQueryItems((items) =>
+        upsertForCurrentView(items, updated, normalizedQuery.state.view, favoriteOnly)
+      );
 
-        if (normalizedQuery.state.view === "trash") {
-          if (typeof updated.trashedAt === "undefined") {
-            return current;
-          }
-
-          const nextItems = [updated, ...current.items.filter((item) => item.id !== updated.id)].sort(
-            sortByTrashedAtDesc
-          );
-          return { ...current, items: nextItems };
-        }
-
-        const isVisibleModePost =
-          updated.mode === normalizedQuery.state.view && typeof updated.trashedAt === "undefined";
-        const canDisplay = isVisibleModePost && (!favoriteOnly || updated.favorite);
-        if (!canDisplay) {
-          return {
-            ...current,
-            items: current.items.filter((item) => item.id !== updated.id),
-          };
-        }
-
-        const nextItems = [updated, ...current.items.filter((item) => item.id !== updated.id)].sort(
-          sortByCreatedAtDesc
-        );
-        return { ...current, items: nextItems };
-      });
+      if (!changed) {
+        void queryClient.invalidateQueries({ queryKey: queryKey, exact: true });
+      }
     },
-    [favoriteOnly, normalizedQuery.state.view]
+    [favoriteOnly, normalizedQuery.state.view, queryClient, queryKey, updateCurrentQueryItems]
   );
 
   const handleMemoSaveStub = React.useCallback(
@@ -466,42 +682,85 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     }
   }, []);
 
-  const handleMoveToTrash = React.useCallback(async (postId: string) => {
-    const result = await moveToTrashAction({ postId });
-    if (!result.ok) {
-      toast.error(result.error.message);
-      return;
-    }
+  const handleMoveToTrash = React.useCallback(
+    async (postId: string) => {
+      const result = await moveToTrashAction({ postId });
+      if (!result.ok) {
+        toast.error(result.error.message);
+        return;
+      }
 
-    setListState((current) => ({
-      ...current,
-      items: current.items.filter((post) => post.id !== postId),
-    }));
-    if (editingMemoPostId === postId) {
-      setEditingMemoPostId(null);
-      setEditingMemoValue("");
-    }
-    toast("投稿を削除しました");
-  }, [editingMemoPostId]);
+      const targetPost = visibleItems.find((post) => post.id === postId) ?? findInCachedPostLists(postId);
+      const movedPost: PostRecord | null = targetPost
+        ? {
+            ...targetPost,
+            trashedAt: targetPost.trashedAt ?? formatNowDate(),
+          }
+        : null;
 
-  const handleRestoreTrashPostStub = React.useCallback(async (postId: string) => {
-    const result = await restoreFromTrashAction({ postId });
-    if (!result.ok) {
-      toast.error(result.error.message);
-      return;
-    }
+      updateAllCachedPostLists((condition, items) => {
+        if (condition.view === "trash") {
+          if (!movedPost) {
+            return items;
+          }
 
-    setListState((current) => ({
-      ...current,
-      items: current.items.filter((post) => post.id !== postId),
-    }));
-    setSelectedTrashPostIds((current) => {
-      const next = new Set(current);
-      next.delete(postId);
-      return next;
-    });
-    toast("投稿を復元しました");
-  }, []);
+          return [movedPost, ...items.filter((post) => post.id !== postId)].sort(sortByTrashedAtDesc);
+        }
+
+        return items.filter((post) => post.id !== postId);
+      });
+
+      if (editingMemoPostId === postId) {
+        setEditingMemoPostId(null);
+        setEditingMemoValue("");
+      }
+      toast("投稿を削除しました");
+    },
+    [editingMemoPostId, findInCachedPostLists, updateAllCachedPostLists, visibleItems]
+  );
+
+  const handleRestoreTrashPostStub = React.useCallback(
+    async (postId: string) => {
+      const result = await restoreFromTrashAction({ postId });
+      if (!result.ok) {
+        toast.error(result.error.message);
+        return;
+      }
+
+      const trashPost =
+        visibleItems.find((post) => post.id === postId) ?? findInCachedPostLists(postId);
+      const restoredPost: PostRecord | null = trashPost
+        ? {
+            ...trashPost,
+            trashedAt: undefined,
+          }
+        : null;
+
+      updateAllCachedPostLists((condition, items) => {
+        if (condition.view === "trash") {
+          return items.filter((post) => post.id !== postId);
+        }
+
+        if (!restoredPost || restoredPost.mode !== condition.view) {
+          return items.filter((post) => post.id !== postId);
+        }
+
+        const shouldShow = !condition.favoriteOnly || restoredPost.favorite;
+        if (!shouldShow) {
+          return items.filter((post) => post.id !== postId);
+        }
+
+        return [restoredPost, ...items.filter((post) => post.id !== postId)].sort(sortByCreatedAtDesc);
+      });
+      setSelectedTrashPostIds((current) => {
+        const next = new Set(current);
+        next.delete(postId);
+        return next;
+      });
+      toast("投稿を復元しました");
+    },
+    [findInCachedPostLists, updateAllCachedPostLists, visibleItems]
+  );
 
   const handlePermanentDeleteTrashPostStub = React.useCallback((postId: string) => {
     void postId;
@@ -544,8 +803,18 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
             favoriteOnly={favoriteOnly}
             posts={posts}
             trashPosts={trashPosts}
-            isLoading={listState.isLoading}
-            errorMessage={listState.error?.message ?? null}
+            isInitialLoading={isInitialLoading}
+            isNextPageLoading={isNextPageLoading}
+            hasNextPage={Boolean(listQuery.hasNextPage)}
+            initialErrorMessage={initialErrorMessage}
+            nextPageErrorMessage={nextPageErrorMessage}
+            onRetryInitialLoad={() => {
+              void listQuery.refetch();
+            }}
+            onRetryNextPageLoad={() => {
+              void listQuery.fetchNextPage();
+            }}
+            loadMoreSentinelRef={loadMoreSentinelRef}
             onFavoriteToggle={handleFavoriteFilterToggle}
             onToggleFavorite={handleToggleFavorite}
             onMoveToTrash={handleMoveToTrash}

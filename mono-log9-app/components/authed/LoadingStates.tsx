@@ -4,10 +4,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type LoadingStatesProps = {
   showEmpty: boolean;
-  showSkeleton: boolean;
+  showInitialSkeleton: boolean;
+  showNextPageSkeleton?: boolean;
 };
 
-export default function LoadingStates({ showEmpty, showSkeleton }: LoadingStatesProps) {
+export default function LoadingStates({
+  showEmpty,
+  showInitialSkeleton,
+  showNextPageSkeleton = false,
+}: LoadingStatesProps) {
   return (
     <div className="space-y-4">
       {showEmpty && (
@@ -15,13 +20,19 @@ export default function LoadingStates({ showEmpty, showSkeleton }: LoadingStates
           投稿がありません。
         </div>
       )}
-      {showSkeleton && (
+      {showInitialSkeleton && (
         <div className="space-y-3">
           <p className="text-xs text-foreground/60">読み込み中</p>
           <div className="space-y-2">
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-20 w-full" />
           </div>
+        </div>
+      )}
+      {showNextPageSkeleton && (
+        <div className="space-y-2">
+          <p className="text-xs text-foreground/60">追加読み込み中</p>
+          <Skeleton className="h-20 w-full" />
         </div>
       )}
     </div>

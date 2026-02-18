@@ -22,6 +22,27 @@ class ResizeObserverMock {
 
 global.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
 
+class IntersectionObserverMock {
+  readonly root: Element | null = null;
+  readonly rootMargin = "";
+  readonly thresholds: ReadonlyArray<number> = [];
+
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+}
+
+global.IntersectionObserver =
+  IntersectionObserverMock as unknown as typeof IntersectionObserver;
+
+Object.defineProperty(window, "scrollTo", {
+  configurable: true,
+  value: jest.fn(),
+});
+
 if (!HTMLElement.prototype.getClientRects) {
   Object.defineProperty(HTMLElement.prototype, "getClientRects", {
     configurable: true,

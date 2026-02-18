@@ -1,4 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import AuthedScreen from "@/components/authed/AuthedScreen";
@@ -110,6 +111,22 @@ type PostActionsModule = {
 
 function getPostActionsMock() {
   return jest.requireMock("@/app/actions/postActions") as PostActionsModule;
+}
+
+function renderAuthedScreen() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AuthedScreen logoutUrl="/" />
+    </QueryClientProvider>
+  );
 }
 
 const basePosts: PostRecord[] = [
@@ -229,6 +246,19 @@ function getScopedPosts(input: ListPostsInput, source: PostRecord[]): PostRecord
         .sort(sortByCreatedAtDesc);
 }
 
+function resolveCursorStartIndex(items: PostRecord[], cursor: string | undefined): number {
+  if (typeof cursor === "undefined") {
+    return 0;
+  }
+
+  const index = items.findIndex((post) => post.id === cursor);
+  if (index === -1) {
+    return items.length;
+  }
+
+  return index + 1;
+}
+
 describe("AuthedScreen", () => {
   let mutablePosts: PostRecord[];
 
@@ -240,13 +270,16 @@ describe("AuthedScreen", () => {
     getPostActionsMock().listPostsAction.mockImplementation(async (input: ListPostsInput) => {
       const limit = input.limit ?? 10;
       const scoped = getScopedPosts(input, mutablePosts);
+      const startIndex = resolveCursorStartIndex(scoped, input.cursor);
+      const items = scoped.slice(startIndex, startIndex + limit);
+      const hasNext = startIndex + limit < scoped.length;
 
       return {
         ok: true,
         data: {
-          items: scoped.slice(0, limit),
-          hasNext: scoped.length > limit,
-          nextCursor: scoped.length > limit ? scoped[limit - 1].id : null,
+          items,
+          hasNext,
+          nextCursor: hasNext && items.length > 0 ? items[items.length - 1].id : null,
         },
       };
     });
@@ -374,7 +407,7 @@ describe("AuthedScreen", () => {
   });
 
   it("replaces missing view query with view=memo on initial render", async () => {
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     expect(getNavigationMock().__mockNavigation.getReplaceMock()).toHaveBeenCalledWith(
       "/?view=memo"
@@ -394,7 +427,7 @@ describe("AuthedScreen", () => {
   it("does not replace for already-valid query even when key order is non-canonical", async () => {
     getNavigationMock().__mockNavigation.setQuery("view=note&stubAuth=1&favoriteNote");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     expect(getNavigationMock().__mockNavigation.getReplaceMock()).not.toHaveBeenCalled();
 
@@ -413,7 +446,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("stubAuth=1&foo=bar&view=memo&favoriteMemo");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     await user.click(screen.getByRole("button", { name: "ノート" }));
 
@@ -432,7 +465,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=note&favoriteNote");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     await waitFor(() => {
       expect(getPostActionsMock().listPostsAction).toHaveBeenCalledWith({
@@ -453,11 +486,208 @@ describe("AuthedScreen", () => {
     });
   });
 
+  it("restores memo scroll position when returning from note via browser back", async () => {
+    const user = userEvent.setup();
+    await act(async () => {
+      getNavigationMock().__mockNavigation.setQuery("view=memo");
+    });
+    Object.defineProperty(window, "scrollY", {
+      configurable: true,
+      writable: true,
+      value: 480,
+    });
+
+    renderAuthedScreen();
+
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+    await user.click(screen.getByRole("button", { name: "ノート" }));
+
+    await waitFor(() => {
+      expect(sessionStorage.getItem("mono-log:scroll:v1:memo:0")).toBe("480");
+    });
+
+    Object.defineProperty(window, "scrollY", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+
+    await act(async () => {
+      getNavigationMock().__mockNavigation.setQuery("view=memo");
+    });
+
+    await waitFor(() => {
+      expect(window.scrollTo).toHaveBeenCalledWith({ top: 480, left: 0, behavior: "auto" });
+    });
+  });
+
+  it("does not overwrite saved memo scroll position with 0 during popstate navigation", async () => {
+    const user = userEvent.setup();
+    await act(async () => {
+      getNavigationMock().__mockNavigation.setQuery("view=memo");
+    });
+
+    Object.defineProperty(window, "scrollY", {
+      configurable: true,
+      writable: true,
+      value: 640,
+    });
+
+    renderAuthedScreen();
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+    await user.click(screen.getByRole("button", { name: "ノート" }));
+
+    await waitFor(() => {
+      expect(sessionStorage.getItem("mono-log:scroll:v1:memo:0")).toBe("640");
+    });
+
+    window.dispatchEvent(new PopStateEvent("popstate"));
+
+    Object.defineProperty(window, "scrollY", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+
+    await act(async () => {
+      getNavigationMock().__mockNavigation.setQuery("view=memo");
+    });
+
+    await waitFor(() => {
+      expect(sessionStorage.getItem("mono-log:scroll:v1:memo:0")).toBe("640");
+    });
+  });
+
+  it("does not auto-retry next-page fetch after next-page error until user retries", async () => {
+    const user = userEvent.setup();
+    const originalIntersectionObserver = global.IntersectionObserver;
+    const observerInstances: Array<{
+      callback: IntersectionObserverCallback;
+      isActive: boolean;
+    }> = [];
+
+    class TestIntersectionObserver implements IntersectionObserver {
+      readonly root: Element | null = null;
+      readonly rootMargin = "";
+      readonly thresholds: ReadonlyArray<number> = [];
+      private readonly index: number;
+
+      constructor(callback: IntersectionObserverCallback) {
+        observerInstances.push({
+          callback,
+          isActive: false,
+        });
+        this.index = observerInstances.length - 1;
+      }
+
+      observe() {
+        observerInstances[this.index].isActive = true;
+      }
+
+      unobserve() {
+        observerInstances[this.index].isActive = false;
+      }
+
+      disconnect() {
+        observerInstances[this.index].isActive = false;
+      }
+
+      takeRecords() {
+        return [];
+      }
+    }
+
+    global.IntersectionObserver =
+      TestIntersectionObserver as unknown as typeof IntersectionObserver;
+
+    try {
+      getNavigationMock().__mockNavigation.setQuery("view=memo");
+      mutablePosts = Array.from({ length: 12 }, (_, index) => ({
+        id: `post-${`${index + 100}`.padStart(3, "0")}`,
+        mode: "memo",
+        content: createDocFromPlainText(`memo-${index}`),
+        contentText: `memo-${index}`,
+        favorite: false,
+        createdAt: `2026-02-${`${18 - Math.floor(index / 6)}`.padStart(2, "0")} ${`${23 - (index % 6)}`.padStart(2, "0")}:00`,
+      }));
+
+      getPostActionsMock().listPostsAction.mockImplementation(async (input: ListPostsInput) => {
+        const limit = input.limit ?? 10;
+        const scoped = getScopedPosts(input, mutablePosts);
+        const startIndex = resolveCursorStartIndex(scoped, input.cursor);
+        const items = scoped.slice(startIndex, startIndex + limit);
+        const hasNext = startIndex + limit < scoped.length;
+
+        if (typeof input.cursor !== "undefined") {
+          return {
+            ok: false,
+            error: {
+              code: "INVALID_CURSOR",
+              message: "cursor is invalid",
+            },
+          };
+        }
+
+        return {
+          ok: true,
+          data: {
+            items,
+            hasNext,
+            nextCursor: hasNext && items.length > 0 ? items[items.length - 1].id : null,
+          },
+        };
+      });
+
+      renderAuthedScreen();
+
+      await screen.findByText("memo-0");
+      await screen.findByTestId("posts-load-more-sentinel");
+      await waitFor(() => {
+        expect(observerInstances.some((instance) => instance.isActive)).toBe(true);
+      });
+
+      const triggerIntersection = () => {
+        const activeCallbacks = observerInstances
+          .filter((instance) => instance.isActive)
+          .map((instance) => instance.callback);
+        for (const callback of activeCallbacks) {
+          callback(
+            [
+              {
+                isIntersecting: true,
+              } as IntersectionObserverEntry,
+            ],
+            {} as IntersectionObserver
+          );
+        }
+      };
+
+      triggerIntersection();
+      await waitFor(() => {
+        expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+      });
+      expect(screen.getByRole("button", { name: "追加取得を再試行" })).toBeInTheDocument();
+
+      triggerIntersection();
+      await new Promise((resolve) => {
+        setTimeout(resolve, 20);
+      });
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+
+      await user.click(screen.getByRole("button", { name: "追加取得を再試行" }));
+      await waitFor(() => {
+        expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(3);
+      });
+    } finally {
+      global.IntersectionObserver = originalIntersectionObserver;
+    }
+  });
+
   it("calls setFavoriteAction and updates the current list", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=memo");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     await screen.findByText("買い物メモ: 牛乳、パン、トマト");
 
@@ -480,7 +710,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=note&favoriteNote");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     const noteBody = await screen.findByText(/今日の学び/);
     const noteCard = noteBody.closest("article");
@@ -508,6 +738,9 @@ describe("AuthedScreen", () => {
     getPostActionsMock().listPostsAction.mockImplementation(async (input: ListPostsInput) => {
       const limit = input.limit ?? 10;
       const scoped = getScopedPosts(input, mutablePosts);
+      const startIndex = resolveCursorStartIndex(scoped, input.cursor);
+      const items = scoped.slice(startIndex, startIndex + limit);
+      const hasNext = startIndex + limit < scoped.length;
 
       if (input.view === "note") {
         await new Promise((resolve) => {
@@ -518,14 +751,14 @@ describe("AuthedScreen", () => {
       return {
         ok: true,
         data: {
-          items: scoped.slice(0, limit),
-          hasNext: scoped.length > limit,
-          nextCursor: scoped.length > limit ? scoped[limit - 1].id : null,
+          items,
+          hasNext,
+          nextCursor: hasNext && items.length > 0 ? items[items.length - 1].id : null,
         },
       };
     });
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     await screen.findByText("買い物メモ: 牛乳、パン、トマト");
     await user.click(screen.getByRole("button", { name: "ノート" }));
@@ -546,7 +779,7 @@ describe("AuthedScreen", () => {
       },
     });
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     expect(await screen.findByText("現在この環境では投稿機能を利用できません。")).toBeInTheDocument();
     expect(screen.queryByText("投稿がありません。")).not.toBeInTheDocument();
@@ -557,7 +790,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     const restoreButtons = await screen.findAllByRole("button", { name: "復元" });
 
@@ -580,7 +813,7 @@ describe("AuthedScreen", () => {
       },
     });
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     const restoreButtons = await screen.findAllByRole("button", { name: "復元" });
     await user.click(restoreButtons[0]);
@@ -595,7 +828,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     const deleteButtons = await screen.findAllByRole("button", { name: "完全に削除" });
     await user.click(deleteButtons[0]);
@@ -607,7 +840,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=memo");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     await screen.findByText("買い物メモ: 牛乳、パン、トマト");
     await user.type(screen.getByLabelText("メモ本文"), "新規メモ");
@@ -617,6 +850,7 @@ describe("AuthedScreen", () => {
       expect(getPostActionsMock().createPostAction).toHaveBeenCalledTimes(1);
     });
     expect(screen.getByText("新規メモ")).toBeInTheDocument();
+    expect(screen.getByText("打ち合わせは金曜 14:00 から")).toBeInTheDocument();
     expect(toast).toHaveBeenCalledWith("保存しました");
   });
 
@@ -631,7 +865,7 @@ describe("AuthedScreen", () => {
       },
     });
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     await screen.findByText("買い物メモ: 牛乳、パン、トマト");
     const input = screen.getByLabelText("メモ本文");
@@ -648,7 +882,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=memo");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
     if (!memoCard) {
@@ -683,7 +917,7 @@ describe("AuthedScreen", () => {
       },
     });
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
     if (!memoCard) {
@@ -719,7 +953,7 @@ describe("AuthedScreen", () => {
       },
     });
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     const noteCard = (await screen.findByText(/今日の学び/)).closest("article");
     if (!noteCard) {
@@ -744,7 +978,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=memo");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
     if (!memoCard) {
@@ -762,6 +996,37 @@ describe("AuthedScreen", () => {
     expect(toast).toHaveBeenCalledWith("投稿を削除しました");
   });
 
+  it("updates cached trash list on moveToTrash without refetching lists", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
+
+    renderAuthedScreen();
+
+    await screen.findByText("破棄候補メモ: 先週の打ち合わせメモ");
+    await user.click(screen.getByRole("button", { name: "メモ" }));
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+
+    const listCallCountBeforeDelete = getPostActionsMock().listPostsAction.mock.calls.length;
+    const memoCard = screen.getByText("買い物メモ: 牛乳、パン、トマト").closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "削除" }));
+    await waitFor(() => {
+      expect(getPostActionsMock().moveToTrashAction).toHaveBeenCalledWith({
+        postId: "post-001",
+      });
+    });
+    expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(listCallCountBeforeDelete);
+
+    await user.click(screen.getByRole("button", { name: "ごみ箱" }));
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(listCallCountBeforeDelete);
+    });
+    expect(screen.getByText("買い物メモ: 牛乳、パン、トマト")).toBeInTheDocument();
+  });
+
   it("keeps list item visible and shows error when moveToTrashAction fails", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=memo");
@@ -773,7 +1038,7 @@ describe("AuthedScreen", () => {
       },
     });
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
     if (!memoCard) {
@@ -792,7 +1057,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     await screen.findByRole("checkbox", { name: "trash-001を選択" });
     expect(screen.getByRole("button", { name: "選択した投稿を削除" })).toBeDisabled();
@@ -807,7 +1072,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     await screen.findByRole("checkbox", { name: "trash-001を選択" });
 
@@ -826,7 +1091,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     await screen.findByRole("checkbox", { name: "trash-001を選択" });
 
@@ -845,7 +1110,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     await screen.findByRole("checkbox", { name: "trash-001を選択" });
 
@@ -863,7 +1128,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     await screen.findByRole("checkbox", { name: "trash-001を選択" });
 
@@ -881,7 +1146,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=memo");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     const memoText = await screen.findByText("買い物メモ: 牛乳、パン、トマト");
     const memoCard = memoText.closest("article");
@@ -903,7 +1168,7 @@ describe("AuthedScreen", () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=note");
 
-    render(<AuthedScreen logoutUrl="/" />);
+    renderAuthedScreen();
 
     expect(screen.getByRole("button", { name: "ノートを書く" })).toBeInTheDocument();
 

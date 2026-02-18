@@ -17,8 +17,14 @@ type Container2Props = {
   favoriteOnly: boolean;
   posts: PostRecord[];
   trashPosts: PostRecord[];
-  isLoading: boolean;
-  errorMessage: string | null;
+  isInitialLoading: boolean;
+  isNextPageLoading: boolean;
+  hasNextPage: boolean;
+  initialErrorMessage: string | null;
+  nextPageErrorMessage: string | null;
+  onRetryInitialLoad: () => void;
+  onRetryNextPageLoad: () => void;
+  loadMoreSentinelRef: (element: HTMLDivElement | null) => void;
   onFavoriteToggle: () => void;
   onToggleFavorite: (postId: string) => void;
   onMoveToTrash: (postId: string) => void;
@@ -44,8 +50,14 @@ export default function Container2({
   favoriteOnly,
   posts,
   trashPosts,
-  isLoading,
-  errorMessage,
+  isInitialLoading,
+  isNextPageLoading,
+  hasNextPage,
+  initialErrorMessage,
+  nextPageErrorMessage,
+  onRetryInitialLoad,
+  onRetryNextPageLoad,
+  loadMoreSentinelRef,
   onFavoriteToggle,
   onToggleFavorite,
   onMoveToTrash,
@@ -132,16 +144,38 @@ export default function Container2({
             ))}
       </div>
 
-      {errorMessage && (
+      {initialErrorMessage && (
         <Alert variant="destructive">
-          <AlertDescription>{errorMessage}</AlertDescription>
+          <AlertDescription>{initialErrorMessage}</AlertDescription>
         </Alert>
+      )}
+      {initialErrorMessage && (
+        <Button type="button" variant="outline" size="sm" onClick={onRetryInitialLoad}>
+          再試行
+        </Button>
+      )}
+      {nextPageErrorMessage && (
+        <Alert variant="destructive">
+          <AlertDescription>{nextPageErrorMessage}</AlertDescription>
+        </Alert>
+      )}
+      {nextPageErrorMessage && (
+        <Button type="button" variant="outline" size="sm" onClick={onRetryNextPageLoad}>
+          追加取得を再試行
+        </Button>
       )}
 
       <LoadingStates
-        showEmpty={!errorMessage && (isTrashView ? trashPosts.length === 0 : posts.length === 0)}
-        showSkeleton={isLoading}
+        showEmpty={
+          !initialErrorMessage &&
+          !isInitialLoading &&
+          !isNextPageLoading &&
+          (isTrashView ? trashPosts.length === 0 : posts.length === 0)
+        }
+        showInitialSkeleton={isInitialLoading}
+        showNextPageSkeleton={isNextPageLoading}
       />
+      {hasNextPage && <div ref={loadMoreSentinelRef} aria-hidden="true" data-testid="posts-load-more-sentinel" />}
     </section>
   );
 }
