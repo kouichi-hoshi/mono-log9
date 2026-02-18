@@ -230,4 +230,37 @@ describe("postActions", () => {
     });
     expect(getRepositoryMock().createPost).not.toHaveBeenCalled();
   });
+
+  it("returns VALIDATION_ERROR when update postId format is invalid", async () => {
+    const result = await updatePostAction({
+      postId: "invalid",
+      content: createDocFromPlainText("更新本文"),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "入力内容に不備があります",
+      },
+    });
+    expect(getRepositoryMock().updatePost).not.toHaveBeenCalled();
+  });
+
+  it("returns VALIDATION_ERROR when update title exceeds max length", async () => {
+    const result = await updatePostAction({
+      postId: "post-100",
+      title: "a".repeat(101),
+      content: createDocFromPlainText("更新本文"),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "入力内容に不備があります",
+      },
+    });
+    expect(getRepositoryMock().updatePost).not.toHaveBeenCalled();
+  });
 });

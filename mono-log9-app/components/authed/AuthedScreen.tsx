@@ -365,7 +365,6 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       });
 
       if (!result.ok) {
-        console.log("[AuthedScreen] note save failed", result.error, draft.contentJson);
         toast.error(result.error.message);
         return false;
       }

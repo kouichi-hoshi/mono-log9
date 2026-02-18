@@ -672,6 +672,42 @@ describe("AuthedScreen", () => {
     expect(toast).toHaveBeenCalledWith("更新しました");
   });
 
+  it("keeps memo inline edit open and shows error when updatePostAction fails", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    getPostActionsMock().updatePostAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "内容は最大280文字までです",
+      },
+    });
+
+    render(<AuthedScreen logoutUrl="/" />);
+
+    const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "編集" }));
+    const input = within(memoCard).getByLabelText("メモ本文");
+    await user.clear(input);
+    await user.type(input, "失敗する更新");
+    await user.click(within(memoCard).getByRole("button", { name: "更新する" }));
+
+    await waitFor(() => {
+      expect(getPostActionsMock().updatePostAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          postId: "post-001",
+        })
+      );
+    });
+    expect(toast.error).toHaveBeenCalledWith("内容は最大280文字までです");
+    expect(within(memoCard).getByRole("button", { name: "更新する" })).toBeInTheDocument();
+    expect(input).toHaveValue("失敗する更新");
+  });
+
   it("keeps note edit modal open and shows error when updatePostAction fails", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=note");

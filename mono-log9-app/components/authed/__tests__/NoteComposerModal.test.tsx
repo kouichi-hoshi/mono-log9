@@ -45,6 +45,72 @@ describe("NoteComposerModal", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("closes immediately without discard confirmation when there is no input", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = jest.fn();
+
+    render(
+      <NoteComposerModal
+        open
+        onOpenChange={onOpenChange}
+        mode="create"
+        onSaveStub={jest.fn().mockResolvedValue(true)}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByText("入力中の内容を破棄しますか？")).not.toBeInTheDocument();
+  });
+
+  it("keeps modal open when save fails", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = jest.fn();
+    const onSaveStub = jest.fn().mockResolvedValue(false);
+
+    render(
+      <NoteComposerModal
+        open
+        onOpenChange={onOpenChange}
+        mode="edit"
+        initialContentJson={createDocFromPlainText("既存ノート本文")}
+        initialPlainText="既存ノート本文"
+        onSaveStub={onSaveStub}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "更新する" }));
+
+    await waitFor(() => {
+      expect(onSaveStub).toHaveBeenCalledTimes(1);
+    });
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByRole("button", { name: "更新する" })).toBeInTheDocument();
+  });
+
+  it("keeps editing when discard dialog is canceled", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = jest.fn();
+
+    render(
+      <NoteComposerModal
+        open
+        onOpenChange={onOpenChange}
+        mode="create"
+        onSaveStub={jest.fn().mockResolvedValue(true)}
+      />
+    );
+
+    await user.type(screen.getByLabelText("ノートタイトル"), "下書き");
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+    await user.click(screen.getByRole("button", { name: "編集を続ける" }));
+
+    expect(screen.queryByText("入力中の内容を破棄しますか？")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("ノートタイトル")).toHaveValue("下書き");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
   it("calls save stub when initial content is present", async () => {
     const user = userEvent.setup();
     const onSaveStub = jest.fn();
@@ -66,5 +132,4 @@ describe("NoteComposerModal", () => {
       expect(onSaveStub).toHaveBeenCalledTimes(1);
     });
   });
-
 });
