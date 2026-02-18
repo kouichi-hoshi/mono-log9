@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# mono-log9-app
 
-## Getting Started
+メモ/ノート投稿アプリ（Next.js + TypeScript）。
+ノートは TipTap JSON を保存形式とし、現在は Unit テストと Playwright UI テストで回帰を検知します。
 
-First, run the development server:
+## 前提
+
+- Node.js 22+
+- pnpm
+
+## セットアップ
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 開発サーバー
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- アクセス: [http://127.0.0.1:3000](http://127.0.0.1:3000)
 
-## Learn More
+## 主要コマンド
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm lint
+pnpm test:e2e
+pnpm test:e2e:ui
+pnpm test:e2e:headed
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Playwright UIモード
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+アプリディレクトリ（`mono-log9-app`）にいる場合:
 
-## Deploy on Vercel
+```bash
+pnpm run test:e2e:ui
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+リポジトリルートにいる場合:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm -C mono-log9-app run test:e2e:ui
+```
+
+補足:
+- E2E 実行時は `playwright.config.ts` の `webServer` 設定により、`USE_STUB_AUTH=true USE_STUB_POSTS=true` で `pnpm dev` が起動します。
