@@ -86,7 +86,7 @@ tags:
 | `listPosts` | `view`, `favoriteOnly`, `limit`, `cursor` | `items`, `nextCursor`, `hasNext` | 通常一覧/ごみ箱一覧取得 |
 | `createPost` | `mode`, `title`, `content` | 作成後の投稿 | 投稿作成（項番18で利用） |
 | `updatePost` | `postId`, `title`, `content` | 更新後の投稿 | 投稿更新（項番18で利用） |
-| `setFavorite` | `postId`, `favorite` | 更新後の投稿 | お気に入り状態の設定（項番21で利用） |
+| `setFavorite` | `postId`, `favorite` | 更新後の投稿 | お気に入り状態の設定（項番22で利用） |
 | `moveToTrash` | `postId` | `void` | ごみ箱投入（項番19で利用） |
 | `restoreFromTrash` | `postId` | `void` | ごみ箱復元（項番19で利用） |
 
