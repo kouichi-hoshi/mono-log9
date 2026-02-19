@@ -1164,6 +1164,67 @@ describe("AuthedScreen", () => {
     expect(within(memoCard).queryByRole("button", { name: "更新する" })).not.toBeInTheDocument();
   });
 
+  it("shows discard confirmation on memo cancel when memo edit is dirty", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    renderAuthedScreen();
+
+    const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "編集" }));
+    const input = within(memoCard).getByLabelText("メモ本文");
+    await user.clear(input);
+    await user.type(input, "キャンセル確認");
+    await user.click(within(memoCard).getByRole("button", { name: "キャンセル" }));
+
+    expect(screen.getByText("編集中の内容があります。破棄して続行しますか？")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "編集を続ける" }));
+    expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
+    expect(within(memoCard).getByLabelText("メモ本文")).toHaveValue("キャンセル確認");
+
+    await user.click(within(memoCard).getByRole("button", { name: "キャンセル" }));
+    await user.click(screen.getByRole("button", { name: "破棄して続行" }));
+    expect(within(memoCard).queryByRole("button", { name: "更新する" })).not.toBeInTheDocument();
+  });
+
+  it("does not show discard confirmation after memo edit is saved and reopened", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    renderAuthedScreen();
+
+    const originalCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
+    if (!originalCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(originalCard).getByRole("button", { name: "編集" }));
+    const input = within(originalCard).getByLabelText("メモ本文");
+    await user.clear(input);
+    await user.type(input, "保存後のメモ");
+    await user.click(within(originalCard).getByRole("button", { name: "更新する" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("保存後のメモ")).toBeInTheDocument();
+    });
+
+    const savedCard = screen.getByText("保存後のメモ").closest("article");
+    if (!savedCard) {
+      throw new Error("saved memo card not found");
+    }
+
+    await user.click(within(savedCard).getByRole("button", { name: "編集" }));
+    await user.click(within(savedCard).getByRole("button", { name: "キャンセル" }));
+
+    expect(within(savedCard).queryByRole("button", { name: "更新する" })).not.toBeInTheDocument();
+    expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
+  });
+
   it("opens note edit modal and updates note", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=note");
@@ -1192,5 +1253,166 @@ describe("AuthedScreen", () => {
       );
     });
     expect(toast).toHaveBeenCalledWith("更新しました");
+  });
+
+  it("shows discard confirmation on query change while memo edit is dirty", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    renderAuthedScreen();
+
+    const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "編集" }));
+    const input = within(memoCard).getByLabelText("メモ本文");
+    await user.clear(input);
+    await user.type(input, "変更したメモ");
+
+    await user.click(screen.getByRole("button", { name: "ノート" }));
+    expect(screen.getByText("編集中の内容があります。破棄して続行しますか？")).toBeInTheDocument();
+    expect(getNavigationMock().__mockNavigation.getPushMock()).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "編集を続ける" }));
+    expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
+    expect(input).toHaveValue("変更したメモ");
+
+    await user.click(screen.getByRole("button", { name: "ノート" }));
+    await user.click(screen.getByRole("button", { name: "破棄して続行" }));
+
+    await waitFor(() => {
+      expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenCalledWith("/?view=note");
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 2, name: "ノート" })).toBeInTheDocument();
+    });
+  });
+
+  it("defers switching to another post edit until discard is confirmed", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    renderAuthedScreen();
+
+    const firstMemoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
+    const secondMemoCard = screen.getByText("打ち合わせは金曜 14:00 から").closest("article");
+    if (!firstMemoCard || !secondMemoCard) {
+      throw new Error("memo cards not found");
+    }
+
+    await user.click(within(firstMemoCard).getByRole("button", { name: "編集" }));
+    const firstInput = within(firstMemoCard).getByLabelText("メモ本文");
+    await user.clear(firstInput);
+    await user.type(firstInput, "1件目を編集中");
+
+    await user.click(within(secondMemoCard).getByRole("button", { name: "編集" }));
+    expect(screen.getByText("編集中の内容があります。破棄して続行しますか？")).toBeInTheDocument();
+    expect(within(secondMemoCard).queryByRole("button", { name: "更新する" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "破棄して続行" }));
+
+    await waitFor(() => {
+      expect(within(firstMemoCard).queryByRole("button", { name: "更新する" })).not.toBeInTheDocument();
+      expect(within(secondMemoCard).getByRole("button", { name: "更新する" })).toBeInTheDocument();
+    });
+  });
+
+  it("routes note close request through discard confirmation", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    renderAuthedScreen();
+
+    await user.click(screen.getByRole("button", { name: "ノートを書く" }));
+    await user.type(screen.getByLabelText("ノートタイトル"), "編集中ノート");
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+
+    expect(screen.getByText("編集中の内容があります。破棄して続行しますか？")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "編集を続ける" }));
+    expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("ノートタイトル")).toHaveValue("編集中ノート");
+
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+    await user.click(screen.getByRole("button", { name: "破棄して続行" }));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows discard confirmation when favorite toggle is clicked while dirty", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    renderAuthedScreen();
+
+    const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "編集" }));
+    const input = within(memoCard).getByLabelText("メモ本文");
+    await user.clear(input);
+    await user.type(input, "お気に入り切替前の編集");
+
+    await user.click(screen.getByRole("button", { name: "お気に入り", pressed: false }));
+    expect(screen.getByText("編集中の内容があります。破棄して続行しますか？")).toBeInTheDocument();
+    expect(getNavigationMock().__mockNavigation.getPushMock()).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "編集を続ける" }));
+    expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
+    expect(input).toHaveValue("お気に入り切替前の編集");
+  });
+
+  it("closes note modal immediately on cancel when note is clean", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    renderAuthedScreen();
+
+    await user.click(screen.getByRole("button", { name: "ノートを書く" }));
+    expect(screen.getByLabelText("ノートタイトル")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
+  });
+
+  it("shows discard confirmation on Escape when note is dirty", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    renderAuthedScreen();
+
+    await user.click(screen.getByRole("button", { name: "ノートを書く" }));
+    await user.type(screen.getByLabelText("ノートタイトル"), "Esc確認");
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByText("編集中の内容があります。破棄して続行しますか？")).toBeInTheDocument();
+  });
+
+  it("closes note modal on Escape when note is clean", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    renderAuthedScreen();
+
+    await user.click(screen.getByRole("button", { name: "ノートを書く" }));
+    expect(screen.getByLabelText("ノートタイトル")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
   });
 });

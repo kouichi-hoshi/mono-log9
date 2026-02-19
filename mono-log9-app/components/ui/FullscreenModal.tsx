@@ -35,6 +35,17 @@ export default function FullscreenModal({
     onOpenChange(false);
   }, [onOpenChange, onRequestClose]);
 
+  const handleContentPointerDown = React.useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) {
+        return;
+      }
+
+      handleRequestClose();
+    },
+    [handleRequestClose]
+  );
+
   return (
     <Dialog
       open={open}
@@ -50,6 +61,7 @@ export default function FullscreenModal({
       <DialogContent
         showCloseButton={false}
         className="left-0 top-0 h-screen w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0"
+        onPointerDown={handleContentPointerDown}
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <DialogDescription className="sr-only">{description ?? title}</DialogDescription>

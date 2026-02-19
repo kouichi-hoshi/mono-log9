@@ -24,14 +24,14 @@ test("ノート離脱確認で編集継続と破棄終了を選べる", async ({
   await page.getByLabel("ノートタイトル").fill("下書きタイトル");
 
   await page.getByRole("button", { name: "キャンセル" }).click();
-  await expect(page.getByText("入力中の内容を破棄しますか？")).toBeVisible();
+  await expect(page.getByText("編集中の内容があります。破棄して続行しますか？")).toBeVisible();
 
   await page.getByRole("button", { name: "編集を続ける" }).click();
-  await expect(page.getByText("入力中の内容を破棄しますか？")).toHaveCount(0);
+  await expect(page.getByText("編集中の内容があります。破棄して続行しますか？")).toHaveCount(0);
   await expect(page.getByLabel("ノートタイトル")).toHaveValue("下書きタイトル");
 
   await page.getByRole("button", { name: "キャンセル" }).click();
-  await page.getByRole("button", { name: "破棄して閉じる" }).click();
+  await page.getByRole("button", { name: "破棄して続行" }).click();
 
   await expect(page.getByLabel("ノートタイトル")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "ノートを書く" })).toBeVisible();

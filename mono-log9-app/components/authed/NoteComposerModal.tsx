@@ -6,17 +6,8 @@ import EditorActionBar from "@/components/authed/EditorActionBar";
 import NoteEditor from "@/components/authed/NoteEditor";
 import type { NoteDraft } from "@/components/authed/types";
 import FullscreenModal from "@/components/ui/FullscreenModal";
+import { isNoteDirty } from "@/lib/posts/hasEdits";
 import type { PostContent } from "@/lib/posts/types";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 type NoteComposerModalProps = {
   open: boolean;
@@ -26,6 +17,8 @@ type NoteComposerModalProps = {
   initialContentJson?: PostContent | null;
   initialPlainText?: string;
   onSaveStub: (draft: NoteDraft) => Promise<boolean> | boolean;
+  onDirtyChange?: (dirty: boolean) => void;
+  onRequestClose?: () => void;
 };
 
 export default function NoteComposerModal({
@@ -36,6 +29,8 @@ export default function NoteComposerModal({
   initialContentJson,
   initialPlainText,
   onSaveStub,
+  onDirtyChange,
+  onRequestClose,
 }: NoteComposerModalProps) {
   const [draft, setDraft] = React.useState<NoteDraft>({
     title: "",
@@ -43,7 +38,6 @@ export default function NoteComposerModal({
     plainText: "",
   });
   const [showValidationError, setShowValidationError] = React.useState(false);
-  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = React.useState(false);
 
   const handleTitleChange = React.useCallback((nextTitle: string) => {
     setDraft((current) => ({
@@ -65,6 +59,7 @@ export default function NoteComposerModal({
 
   React.useEffect(() => {
     if (!open) {
+      onDirtyChange?.(false);
       return;
     }
 
@@ -74,25 +69,40 @@ export default function NoteComposerModal({
       plainText: initialPlainText ?? "",
     });
     setShowValidationError(false);
-    setIsDiscardDialogOpen(false);
-  }, [initialContentJson, initialPlainText, initialTitle, open, mode]);
+  }, [initialContentJson, initialPlainText, initialTitle, onDirtyChange, open, mode]);
+
+  React.useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    onDirtyChange?.(
+      isNoteDirty(
+        {
+          title: initialTitle,
+          content: initialContentJson,
+        },
+        {
+          title: draft.title,
+          content: draft.contentJson,
+        }
+      )
+    );
+  }, [draft.contentJson, draft.title, initialContentJson, initialTitle, onDirtyChange, open]);
 
   const closeNoteModal = React.useCallback(() => {
     onOpenChange(false);
     setShowValidationError(false);
-    setIsDiscardDialogOpen(false);
   }, [onOpenChange]);
 
-  const hasAnyInput = draft.title.trim().length > 0 || draft.plainText.trim().length > 0;
-
   const requestCloseNoteModal = React.useCallback(() => {
-    if (!hasAnyInput) {
-      closeNoteModal();
+    if (onRequestClose) {
+      onRequestClose();
       return;
     }
 
-    setIsDiscardDialogOpen(true);
-  }, [closeNoteModal, hasAnyInput]);
+    closeNoteModal();
+  }, [closeNoteModal, onRequestClose]);
 
   const handleSaveNote = React.useCallback(async () => {
     if (draft.plainText.trim().length === 0 || !draft.contentJson) {
@@ -108,53 +118,29 @@ export default function NoteComposerModal({
   }, [closeNoteModal, draft, onSaveStub]);
 
   return (
-    <>
-      <FullscreenModal
-        open={open}
-        onOpenChange={onOpenChange}
-        title={mode === "edit" ? "ノートを編集" : "ノートを書く"}
-        contentWrapperClassName="p-5 max-w-4xl"
-        onRequestClose={requestCloseNoteModal}
-        footer={
-          <EditorActionBar
-            onClose={requestCloseNoteModal}
-            onSave={handleSaveNote}
-            closeLabel="キャンセル"
-            saveLabel={mode === "edit" ? "更新する" : "保存する"}
-          />
-        }
-      >
-        <NoteEditor
-          title={draft.title}
-          onTitleChange={handleTitleChange}
-          contentJson={draft.contentJson}
-          onContentStateChange={handleContentStateChange}
-          showValidationError={showValidationError}
-          onClearValidationError={() => setShowValidationError(false)}
+    <FullscreenModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={mode === "edit" ? "ノートを編集" : "ノートを書く"}
+      contentWrapperClassName="p-5 max-w-4xl"
+      onRequestClose={requestCloseNoteModal}
+      footer={
+        <EditorActionBar
+          onClose={requestCloseNoteModal}
+          onSave={handleSaveNote}
+          closeLabel="キャンセル"
+          saveLabel={mode === "edit" ? "更新する" : "保存する"}
         />
-      </FullscreenModal>
-
-      <AlertDialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>入力中の内容を破棄しますか？</AlertDialogTitle>
-            <AlertDialogDescription>
-              閉じると入力中のノートは削除されます。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>編集を続ける</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setIsDiscardDialogOpen(false);
-                closeNoteModal();
-              }}
-            >
-              破棄して閉じる
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+      }
+    >
+      <NoteEditor
+        title={draft.title}
+        onTitleChange={handleTitleChange}
+        contentJson={draft.contentJson}
+        onContentStateChange={handleContentStateChange}
+        showValidationError={showValidationError}
+        onClearValidationError={() => setShowValidationError(false)}
+      />
+    </FullscreenModal>
   );
 }

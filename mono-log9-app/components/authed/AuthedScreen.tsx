@@ -36,6 +36,7 @@ import {
   toRootPath,
 } from "@/lib/authedQueryState";
 import { clonePostContent, createDocFromPlainText } from "@/lib/posts/content";
+import { isMemoDirty } from "@/lib/posts/hasEdits";
 import {
   flattenInfiniteItems,
   rebuildInfiniteData,
@@ -58,6 +59,34 @@ import { PostsListQueryError, usePostsInfiniteQuery } from "@/lib/posts/usePosts
 type AuthedScreenProps = {
   logoutUrl: string;
 };
+
+type PendingAction =
+  | {
+      type: "query";
+      nextQuery: string;
+      method: "push" | "replace";
+    }
+  | {
+      type: "openMemoEdit";
+      postId: string;
+      initialValue: string;
+    }
+  | {
+      type: "closeMemoEdit";
+    }
+  | {
+      type: "openNoteCreate";
+    }
+  | {
+      type: "openNoteEdit";
+      postId: string;
+      initialTitle: string;
+      initialContent: PostContent | null;
+      initialPlainText: string;
+    }
+  | {
+      type: "closeNoteModal";
+    };
 
 function sortByCreatedAtDesc(a: PostRecord, b: PostRecord): number {
   if (a.createdAt === b.createdAt) {
@@ -177,6 +206,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const [memoDraft, setMemoDraft] = React.useState("");
   const [editingMemoPostId, setEditingMemoPostId] = React.useState<string | null>(null);
   const [editingMemoValue, setEditingMemoValue] = React.useState("");
+  const [editingMemoInitialValue, setEditingMemoInitialValue] = React.useState("");
 
   const [isNoteModalOpen, setIsNoteModalOpen] = React.useState(false);
   const [noteModalMode, setNoteModalMode] = React.useState<"create" | "edit">("create");
@@ -185,9 +215,12 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     null
   );
   const [noteModalInitialPlainText, setNoteModalInitialPlainText] = React.useState("");
+  const [noteModalDirty, setNoteModalDirty] = React.useState(false);
   const [editingNotePostId, setEditingNotePostId] = React.useState<string | null>(null);
   const [selectedTrashPostIds, setSelectedTrashPostIds] = React.useState<Set<string>>(() => new Set());
   const [deleteDialogMode, setDeleteDialogMode] = React.useState<"selected" | "all" | null>(null);
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = React.useState(false);
+  const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
 
   const [isRestoringScroll, setIsRestoringScroll] = React.useState(false);
   const restoredScrollKeyRef = React.useRef<string | null>(null);
@@ -196,6 +229,8 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const hasUserScrolledRef = React.useRef(false);
   const isProgrammaticScrollRef = React.useRef(false);
   const loadMoreSentinelElementRef = React.useRef<HTMLDivElement | null>(null);
+  const committedQueryRef = React.useRef(queryString);
+  const previousQueryRef = React.useRef(queryString);
 
   const visibleItems = React.useMemo(() => flattenInfiniteItems(listQuery.data), [listQuery.data]);
   const posts = React.useMemo(() => (isTrashView ? [] : visibleItems), [isTrashView, visibleItems]);
@@ -215,6 +250,97 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     saveScrollPosition(listCondition);
   }, [listCondition, scrollStorageKey]);
 
+  const isMemoCreateDirty = memoDraft.length > 0;
+  const isMemoEditDirty =
+    editingMemoPostId !== null && isMemoDirty(editingMemoInitialValue, editingMemoValue);
+  const isNoteEditDirty = isNoteModalOpen && noteModalDirty;
+  const hasUnsavedEdits = isMemoCreateDirty || isMemoEditDirty || isNoteEditDirty;
+
+  const closeNoteModalNow = React.useCallback(() => {
+    setIsNoteModalOpen(false);
+    setNoteModalMode("create");
+    setNoteModalInitialTitle("");
+    setNoteModalInitialContent(null);
+    setNoteModalInitialPlainText("");
+    setEditingNotePostId(null);
+    setNoteModalDirty(false);
+  }, []);
+
+  const discardCurrentEdits = React.useCallback(() => {
+    setMemoDraft("");
+    setEditingMemoPostId(null);
+    setEditingMemoValue("");
+    setEditingMemoInitialValue("");
+    closeNoteModalNow();
+  }, [closeNoteModalNow]);
+
+  const executeAction = React.useCallback(
+    (action: PendingAction) => {
+      switch (action.type) {
+        case "query": {
+          saveCurrentScroll();
+          committedQueryRef.current = action.nextQuery;
+          if (action.method === "push") {
+            router.push(toRootPath(action.nextQuery));
+            return;
+          }
+          router.replace(toRootPath(action.nextQuery));
+          return;
+        }
+        case "openMemoEdit": {
+          setEditingMemoPostId(action.postId);
+          setEditingMemoInitialValue(action.initialValue);
+          setEditingMemoValue(action.initialValue);
+          return;
+        }
+        case "closeMemoEdit": {
+          setEditingMemoPostId(null);
+          setEditingMemoInitialValue("");
+          setEditingMemoValue("");
+          return;
+        }
+        case "openNoteCreate": {
+          setNoteModalMode("create");
+          setEditingNotePostId(null);
+          setNoteModalInitialTitle("");
+          setNoteModalInitialContent(null);
+          setNoteModalInitialPlainText("");
+          setNoteModalDirty(false);
+          setIsNoteModalOpen(true);
+          return;
+        }
+        case "openNoteEdit": {
+          setNoteModalMode("edit");
+          setEditingNotePostId(action.postId);
+          setNoteModalInitialTitle(action.initialTitle);
+          setNoteModalInitialContent(action.initialContent);
+          setNoteModalInitialPlainText(action.initialPlainText);
+          setNoteModalDirty(false);
+          setIsNoteModalOpen(true);
+          return;
+        }
+        case "closeNoteModal": {
+          closeNoteModalNow();
+          return;
+        }
+      }
+    },
+    [closeNoteModalNow, router, saveCurrentScroll]
+  );
+
+  const runOrConfirm = React.useCallback(
+    (action: PendingAction) => {
+      if (hasUnsavedEdits) {
+        setPendingAction(action);
+        setIsDiscardDialogOpen(true);
+        return;
+      }
+
+      executeAction(action);
+    },
+    [executeAction, hasUnsavedEdits]
+  );
+
   React.useEffect(() => {
     const handlePopState = () => {
       isPopstateNavigationRef.current = true;
@@ -224,16 +350,54 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [scrollStorageKey]);
+  }, []);
 
   React.useEffect(() => {
     if (!normalizedQuery.changed) {
       return;
     }
 
+    committedQueryRef.current = normalizedQuery.nextQuery;
+    previousQueryRef.current = normalizedQuery.nextQuery;
     saveCurrentScroll();
     router.replace(toRootPath(normalizedQuery.nextQuery));
   }, [normalizedQuery.changed, normalizedQuery.nextQuery, router, saveCurrentScroll]);
+
+  React.useEffect(() => {
+    if (normalizedQuery.changed) {
+      return;
+    }
+
+    const previousQuery = previousQueryRef.current;
+    if (previousQuery === queryString) {
+      return;
+    }
+    previousQueryRef.current = queryString;
+
+    const isPopstateNavigation = isPopstateNavigationRef.current;
+    isPopstateNavigationRef.current = false;
+
+    if (!hasUnsavedEdits) {
+      committedQueryRef.current = queryString;
+      return;
+    }
+
+    const committedQuery = committedQueryRef.current;
+    if (queryString === committedQuery) {
+      return;
+    }
+
+    setPendingAction({
+      type: "query",
+      nextQuery: queryString,
+      method: "replace",
+    });
+    setIsDiscardDialogOpen(true);
+
+    if (isPopstateNavigation || queryString !== committedQuery) {
+      router.replace(toRootPath(committedQuery));
+    }
+  }, [hasUnsavedEdits, normalizedQuery.changed, queryString, router]);
 
   React.useEffect(() => {
     restoredScrollKeyRef.current = null;
@@ -441,9 +605,12 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       return;
     }
 
-    saveCurrentScroll();
-    router.push(toRootPath(next.nextQuery));
-  }, [queryString, router, saveCurrentScroll]);
+    runOrConfirm({
+      type: "query",
+      method: "push",
+      nextQuery: next.nextQuery,
+    });
+  }, [queryString, runOrConfirm]);
 
   const handleModeChange = React.useCallback(
     (nextMode: ViewMode) => {
@@ -452,10 +619,13 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
         return;
       }
 
-      saveCurrentScroll();
-      router.push(toRootPath(next.nextQuery));
+      runOrConfirm({
+        type: "query",
+        method: "push",
+        nextQuery: next.nextQuery,
+      });
     },
-    [queryString, router, saveCurrentScroll]
+    [queryString, runOrConfirm]
   );
 
   const handleTrashClick = React.useCallback(() => {
@@ -464,9 +634,12 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       return;
     }
 
-    saveCurrentScroll();
-    router.push(toRootPath(next.nextQuery));
-  }, [queryString, router, saveCurrentScroll]);
+    runOrConfirm({
+      type: "query",
+      method: "push",
+      nextQuery: next.nextQuery,
+    });
+  }, [queryString, runOrConfirm]);
 
   React.useEffect(() => {
     if (!isTrashView) {
@@ -509,13 +682,8 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   );
 
   const handleOpenNoteCreate = React.useCallback(() => {
-    setNoteModalMode("create");
-    setEditingNotePostId(null);
-    setNoteModalInitialTitle("");
-    setNoteModalInitialContent(null);
-    setNoteModalInitialPlainText("");
-    setIsNoteModalOpen(true);
-  }, []);
+    runOrConfirm({ type: "openNoteCreate" });
+  }, [runOrConfirm]);
 
   const handleEdit = React.useCallback(
     (postId: string) => {
@@ -525,19 +693,23 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       }
 
       if (target.mode === "memo") {
-        setEditingMemoPostId(postId);
-        setEditingMemoValue(target.contentText);
+        runOrConfirm({
+          type: "openMemoEdit",
+          postId,
+          initialValue: target.contentText,
+        });
         return;
       }
 
-      setNoteModalMode("edit");
-      setEditingNotePostId(postId);
-      setNoteModalInitialTitle(target.title ?? "");
-      setNoteModalInitialContent(target.content);
-      setNoteModalInitialPlainText(target.contentText);
-      setIsNoteModalOpen(true);
+      runOrConfirm({
+        type: "openNoteEdit",
+        postId,
+        initialTitle: target.title ?? "",
+        initialContent: clonePostContent(target.content),
+        initialPlainText: target.contentText,
+      });
     },
-    [posts]
+    [posts, runOrConfirm]
   );
 
   const upsertPostInVisibleList = React.useCallback(
@@ -587,6 +759,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
 
       upsertPostInVisibleList(result.data);
       setEditingMemoPostId(null);
+      setEditingMemoInitialValue("");
       setEditingMemoValue("");
       toast("更新しました");
       return true;
@@ -595,9 +768,8 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   );
 
   const handleMemoEditCancel = React.useCallback(() => {
-    setEditingMemoPostId(null);
-    setEditingMemoValue("");
-  }, []);
+    runOrConfirm({ type: "closeMemoEdit" });
+  }, [runOrConfirm]);
 
   const handleNoteSaveStub = React.useCallback(
     async (draft: NoteDraft) => {
@@ -626,6 +798,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
 
       upsertPostInVisibleList(result.data);
       toast(noteModalMode === "edit" ? "更新しました" : "保存しました");
+      setNoteModalDirty(false);
 
       if (noteModalMode === "edit") {
         setNoteModalMode("create");
@@ -682,6 +855,39 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     }
   }, []);
 
+  const handleDiscardDialogOpenChange = React.useCallback((open: boolean) => {
+    setIsDiscardDialogOpen(open);
+    if (!open) {
+      setPendingAction(null);
+    }
+  }, []);
+
+  const handleDiscardAndContinue = React.useCallback(() => {
+    const action = pendingAction;
+    setIsDiscardDialogOpen(false);
+    setPendingAction(null);
+    discardCurrentEdits();
+    if (action) {
+      executeAction(action);
+    }
+  }, [discardCurrentEdits, executeAction, pendingAction]);
+
+  const handleNoteModalOpenChange = React.useCallback(
+    (open: boolean) => {
+      if (open) {
+        setIsNoteModalOpen(true);
+        return;
+      }
+
+      closeNoteModalNow();
+    },
+    [closeNoteModalNow]
+  );
+
+  const handleNoteModalRequestClose = React.useCallback(() => {
+    runOrConfirm({ type: "closeNoteModal" });
+  }, [runOrConfirm]);
+
   const handleMoveToTrash = React.useCallback(
     async (postId: string) => {
       const result = await moveToTrashAction({ postId });
@@ -712,6 +918,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
 
       if (editingMemoPostId === postId) {
         setEditingMemoPostId(null);
+        setEditingMemoInitialValue("");
         setEditingMemoValue("");
       }
       toast("投稿を削除しました");
@@ -837,13 +1044,29 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       </main>
       <NoteComposerModal
         open={isNoteModalOpen}
-        onOpenChange={setIsNoteModalOpen}
+        onOpenChange={handleNoteModalOpenChange}
         mode={noteModalMode}
         initialTitle={noteModalInitialTitle}
         initialContentJson={noteModalInitialContent}
         initialPlainText={noteModalInitialPlainText}
         onSaveStub={handleNoteSaveStub}
+        onDirtyChange={setNoteModalDirty}
+        onRequestClose={handleNoteModalRequestClose}
       />
+      <AlertDialog open={isDiscardDialogOpen} onOpenChange={handleDiscardDialogOpenChange}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>編集中の内容があります。破棄して続行しますか？</AlertDialogTitle>
+            <AlertDialogDescription className="sr-only">
+              編集中の内容を破棄して続行するか確認します
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>編集を続ける</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDiscardAndContinue}>破棄して続行</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={deleteDialogMode !== null} onOpenChange={handleDeleteDialogOpenChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
