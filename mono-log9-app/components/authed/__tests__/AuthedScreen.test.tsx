@@ -122,11 +122,13 @@ function renderAuthedScreen() {
     },
   });
 
-  return render(
+  const rendered = render(
     <QueryClientProvider client={queryClient}>
       <AuthedScreen logoutUrl="/" />
     </QueryClientProvider>
   );
+
+  return { ...rendered, queryClient };
 }
 
 const basePosts: PostRecord[] = [
@@ -706,6 +708,196 @@ describe("AuthedScreen", () => {
     });
   });
 
+  it("does not refetch when toggling favorite filter between already-cached conditions", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    renderAuthedScreen();
+
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(screen.getByRole("button", { name: "お気に入り", pressed: false }));
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+      expect(getPostActionsMock().listPostsAction).toHaveBeenLastCalledWith({
+        view: "memo",
+        favoriteOnly: true,
+        limit: 10,
+      });
+    });
+
+    await user.click(screen.getByRole("button", { name: "お気に入り", pressed: true }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "お気に入り", pressed: false })).toBeInTheDocument();
+    });
+    expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+
+    await user.click(screen.getByRole("button", { name: "お気に入り", pressed: false }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "お気に入り", pressed: true })).toBeInTheDocument();
+    });
+    expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps favorite caches in sync when moving from favorite-off to favorite-on list", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    renderAuthedScreen();
+
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(screen.getByRole("button", { name: "お気に入り", pressed: false }));
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+      expect(screen.getByRole("button", { name: "お気に入り", pressed: true })).toBeInTheDocument();
+    });
+    expect(screen.getByText("投稿がありません。")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "お気に入り", pressed: true }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "お気に入り", pressed: false })).toBeInTheDocument();
+    });
+    expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+
+    const nonFavoriteMemoCard = screen.getByText("買い物メモ: 牛乳、パン、トマト").closest("article");
+    if (!nonFavoriteMemoCard) {
+      throw new Error("non-favorite memo card not found");
+    }
+
+    await user.click(within(nonFavoriteMemoCard).getByRole("button", { name: "お気に入り" }));
+    await waitFor(() => {
+      expect(getPostActionsMock().setFavoriteAction).toHaveBeenCalledWith({
+        postId: "post-001",
+        favorite: true,
+      });
+    });
+
+    await user.click(screen.getByRole("button", { name: "お気に入り", pressed: false }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "お気に入り", pressed: true })).toBeInTheDocument();
+    });
+    expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+    const syncedCard = screen.getByText("買い物メモ: 牛乳、パン、トマト").closest("article");
+    if (!syncedCard) {
+      throw new Error("synced memo card not found");
+    }
+    const syncedFavoriteButton = within(syncedCard).getByRole("button", { name: "お気に入り" });
+    const syncedFavoriteIcon = syncedFavoriteButton.querySelector("svg");
+    if (!syncedFavoriteIcon) {
+      throw new Error("favorite icon not found");
+    }
+    expect(syncedFavoriteIcon.className.baseVal).toContain("fill-amber-400");
+  });
+
+  it("keeps favorite caches in sync when moving from favorite-on to favorite-off list", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    renderAuthedScreen();
+
+    await screen.findByText(/今日の学び/);
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(screen.getByRole("button", { name: "お気に入り", pressed: false }));
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+      expect(screen.getByRole("button", { name: "お気に入り", pressed: true })).toBeInTheDocument();
+    });
+
+    const noteCard = screen.getByText(/今日の学び/).closest("article");
+    if (!noteCard) {
+      throw new Error("note card not found");
+    }
+
+    await user.click(within(noteCard).getByRole("button", { name: "お気に入り" }));
+    await waitFor(() => {
+      expect(getPostActionsMock().setFavoriteAction).toHaveBeenCalledWith({
+        postId: "post-002",
+        favorite: false,
+      });
+    });
+    expect(screen.getByText("投稿がありません。")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "お気に入り", pressed: true }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "お気に入り", pressed: false })).toBeInTheDocument();
+    });
+    const syncedCard = screen.getByText(/今日の学び/).closest("article");
+    if (!syncedCard) {
+      throw new Error("synced note card not found");
+    }
+    const syncedFavoriteButton = within(syncedCard).getByRole("button", { name: "お気に入り" });
+    const syncedFavoriteIcon = syncedFavoriteButton.querySelector("svg");
+    if (!syncedFavoriteIcon) {
+      throw new Error("favorite icon not found");
+    }
+    expect(syncedFavoriteIcon.className.baseVal).not.toContain("fill-amber-400");
+    expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back to invalidation when related caches are not found", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    const { queryClient } = renderAuthedScreen();
+    const invalidateSpy = jest.spyOn(queryClient, "invalidateQueries");
+
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(1);
+    });
+
+    getPostActionsMock().setFavoriteAction.mockImplementationOnce(
+      async ({ postId, favorite }: { postId: string; favorite: boolean }) => {
+        const target = mutablePosts.find((post) => post.id === postId);
+        if (!target) {
+          return {
+            ok: false,
+            error: {
+              code: "NOT_FOUND",
+              message: "対象が見つかりません",
+            },
+          };
+        }
+
+        target.favorite = favorite;
+        return {
+          ok: true,
+          data: {
+            ...target,
+            mode: "note",
+          },
+        };
+      }
+    );
+
+    const memoCard = screen.getByText("買い物メモ: 牛乳、パン、トマト").closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "お気に入り" }));
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["posts", { view: "memo", favoriteOnly: false }],
+        exact: true,
+      });
+    });
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("removes an item immediately when unfavoriting in favorite-only mode", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=note&favoriteNote");
@@ -729,6 +921,40 @@ describe("AuthedScreen", () => {
 
     expect(screen.queryByText(/今日の学び/)).not.toBeInTheDocument();
     expect(screen.getByText("投稿がありません。")).toBeInTheDocument();
+  });
+
+  it("updates favorite button visual state and aria-pressed", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    renderAuthedScreen();
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+
+    const favoriteButtonOff = screen.getByRole("button", { name: "お気に入り", pressed: false });
+    expect(favoriteButtonOff.className).not.toContain("border-amber-400");
+    const offIcon = favoriteButtonOff.querySelector("svg");
+    if (!offIcon) {
+      throw new Error("favorite icon not found");
+    }
+    expect(offIcon.className.baseVal).not.toContain("fill-amber-400");
+
+    await user.click(favoriteButtonOff);
+    const favoriteButtonOn = await screen.findByRole("button", { name: "お気に入り", pressed: true });
+    expect(favoriteButtonOn.className).toContain("border-amber-400");
+    const onIcon = favoriteButtonOn.querySelector("svg");
+    if (!onIcon) {
+      throw new Error("favorite icon not found");
+    }
+    expect(onIcon.className.baseVal).toContain("fill-amber-400");
+  });
+
+  it("does not render favorite filter button in trash view", async () => {
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
+
+    renderAuthedScreen();
+    await screen.findByText("破棄候補メモ: 先週の打ち合わせメモ");
+
+    expect(screen.queryByRole("button", { name: "お気に入り" })).not.toBeInTheDocument();
   });
 
   it("does not show previous view data while waiting for the next view response", async () => {
@@ -1366,6 +1592,37 @@ describe("AuthedScreen", () => {
     await user.click(screen.getByRole("button", { name: "編集を続ける" }));
     expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
     expect(input).toHaveValue("お気に入り切替前の編集");
+  });
+
+  it("applies favorite toggle after selecting discard and continue", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    renderAuthedScreen();
+
+    const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "編集" }));
+    const input = within(memoCard).getByLabelText("メモ本文");
+    await user.clear(input);
+    await user.type(input, "破棄してfavorite切替");
+
+    await user.click(screen.getByRole("button", { name: "お気に入り", pressed: false }));
+    expect(screen.getByText("編集中の内容があります。破棄して続行しますか？")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "破棄して続行" }));
+
+    await waitFor(() => {
+      expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenCalledWith(
+        "/?view=memo&favoriteMemo="
+      );
+    });
+    expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("メモ本文")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "お気に入り", pressed: true })).toBeInTheDocument();
   });
 
   it("closes note modal immediately on cancel when note is clean", async () => {

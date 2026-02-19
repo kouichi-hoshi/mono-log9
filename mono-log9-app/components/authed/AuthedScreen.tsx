@@ -647,6 +647,44 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     }
   }, [isTrashView]);
 
+  const syncFavoriteInCurrentViewCaches = React.useCallback(
+    (updated: PostRecord) => {
+      const entries = queryClient.getQueriesData<PostsInfiniteData>({ queryKey: ["posts"] });
+      let syncedCount = 0;
+
+      for (const [key, data] of entries) {
+        if (!data) {
+          continue;
+        }
+
+        const condition = parsePostsListConditionFromQueryKey(key);
+        if (!condition || condition.view !== updated.mode) {
+          continue;
+        }
+
+        queryClient.setQueryData<PostsInfiniteData>(key, (current) => {
+          if (!current) {
+            return current;
+          }
+
+          const nextItems = upsertForCurrentView(
+            flattenInfiniteItems(current),
+            updated,
+            condition.view,
+            condition.favoriteOnly
+          );
+          return rebuildInfiniteData(current, nextItems);
+        });
+        syncedCount += 1;
+      }
+
+      if (syncedCount === 0) {
+        void queryClient.invalidateQueries({ queryKey: queryKey, exact: true });
+      }
+    },
+    [queryClient, queryKey]
+  );
+
   const handleToggleFavorite = React.useCallback(
     async (postId: string) => {
       const target = visibleItems.find((post) => post.id === postId);
@@ -664,21 +702,9 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
         return;
       }
 
-      updateCurrentQueryItems((items) =>
-        items.flatMap((post) => {
-          if (post.id !== result.data.id) {
-            return [post];
-          }
-
-          if (favoriteOnly && !result.data.favorite) {
-            return [];
-          }
-
-          return [{ ...post, favorite: result.data.favorite }];
-        })
-      );
+      syncFavoriteInCurrentViewCaches(result.data);
     },
-    [favoriteOnly, updateCurrentQueryItems, visibleItems]
+    [syncFavoriteInCurrentViewCaches, visibleItems]
   );
 
   const handleOpenNoteCreate = React.useCallback(() => {
