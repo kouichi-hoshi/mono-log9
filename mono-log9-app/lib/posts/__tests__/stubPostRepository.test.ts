@@ -210,4 +210,39 @@ describe("stubPostRepository", () => {
 
     await expect(stubPostRepository.restoreFromTrash({ postId: "post-001" })).resolves.toBeUndefined();
   });
+
+  it("deletes selected trash posts only", async () => {
+    const result = await stubPostRepository.deleteTrashPosts({
+      postIds: ["trash-001", "trash-003"],
+    });
+
+    expect(result.deletedPostIds).toEqual(["trash-001", "trash-003"]);
+
+    const trash = await stubPostRepository.listPosts({
+      view: "trash",
+      favoriteOnly: false,
+      limit: 20,
+    });
+    expect(trash.items.map((post) => post.id)).toEqual(["trash-002"]);
+  });
+
+  it("returns NOT_FOUND when deleting non-trash post ids", async () => {
+    await expect(
+      stubPostRepository.deleteTrashPosts({
+        postIds: ["post-001"],
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("empties trash and returns deleted count", async () => {
+    const result = await stubPostRepository.emptyTrash();
+    expect(result).toEqual({ deletedCount: 3 });
+
+    const trash = await stubPostRepository.listPosts({
+      view: "trash",
+      favoriteOnly: false,
+      limit: 20,
+    });
+    expect(trash.items).toHaveLength(0);
+  });
 });

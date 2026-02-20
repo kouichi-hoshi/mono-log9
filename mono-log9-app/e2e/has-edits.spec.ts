@@ -30,7 +30,7 @@ test("hasEdits: お気に入り絞り込み変更時も離脱確認する", asyn
   await page.goto("/?stubAuth=1&view=memo");
 
   await page.getByLabel("メモ本文").fill("favorite切替前");
-  await page.getByRole("button", { name: "お気に入り", pressed: false }).click();
+  await page.getByTestId("favorite-filter-toggle").click();
   await expect(page.getByText("編集中の内容があります。破棄して続行しますか？")).toBeVisible();
 
   await page.getByRole("button", { name: "編集を続ける" }).click();
@@ -51,7 +51,7 @@ test("hasEdits: 戻る操作で『編集を続ける』を選ぶと編集中状�
   await expect(page.getByText("編集中の内容があります。破棄して続行しますか？")).toBeVisible();
   await page.getByRole("button", { name: "編集を続ける" }).click();
 
-  await expect(page).toHaveURL(/view=note/);
+  await expect(page).toHaveURL(/view=note.*noteComposer=create/);
   await expect(page.getByLabel("ノートタイトル")).toHaveValue("戻る確認テスト");
 });
 
@@ -67,7 +67,7 @@ test("hasEdits: 戻る操作で『破棄して続行』を選ぶと遷移する"
   await expect(page.getByText("編集中の内容があります。破棄して続行しますか？")).toBeVisible();
   await page.getByRole("button", { name: "破棄して続行" }).click();
 
-  await expect(page).toHaveURL(/view=memo/);
+  await expect(page).toHaveURL(/view=note/);
 });
 
 test("hasEdits: 進む操作でも離脱確認し、破棄で遷移する", async ({ page }) => {

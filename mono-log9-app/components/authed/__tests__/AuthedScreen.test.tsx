@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 
 import AuthedScreen from "@/components/authed/AuthedScreen";
 import { createDocFromPlainText, extractContentText } from "@/lib/posts/content";
@@ -14,6 +15,8 @@ jest.mock("sonner", () => {
 
 jest.mock("@/app/actions/postActions", () => ({
   createPostAction: jest.fn(),
+  deleteTrashPostsAction: jest.fn(),
+  emptyTrashAction: jest.fn(),
   listPostsAction: jest.fn(),
   moveToTrashAction: jest.fn(),
   restoreFromTrashAction: jest.fn(),
@@ -102,6 +105,8 @@ function getNavigationMock() {
 
 type PostActionsModule = {
   createPostAction: jest.Mock;
+  deleteTrashPostsAction: jest.Mock;
+  emptyTrashAction: jest.Mock;
   listPostsAction: jest.Mock;
   moveToTrashAction: jest.Mock;
   restoreFromTrashAction: jest.Mock;
@@ -113,7 +118,7 @@ function getPostActionsMock() {
   return jest.requireMock("@/app/actions/postActions") as PostActionsModule;
 }
 
-function renderAuthedScreen() {
+function renderAuthedScreen(props?: Partial<ComponentProps<typeof AuthedScreen>>) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -124,7 +129,7 @@ function renderAuthedScreen() {
 
   const rendered = render(
     <QueryClientProvider client={queryClient}>
-      <AuthedScreen logoutUrl="/" />
+      <AuthedScreen logoutUrl="/" {...props} />
     </QueryClientProvider>
   );
 
@@ -406,6 +411,45 @@ describe("AuthedScreen", () => {
         return { ok: true, data: null };
       }
     );
+
+    getPostActionsMock().deleteTrashPostsAction.mockImplementation(
+      async ({ postIds }: { postIds: string[] }) => {
+        const ids = Array.from(new Set(postIds));
+        const targets = ids
+          .map((postId) => mutablePosts.find((post) => post.id === postId))
+          .filter((post): post is PostRecord => Boolean(post));
+
+        if (targets.length !== ids.length || targets.some((post) => typeof post.trashedAt === "undefined")) {
+          return {
+            ok: false,
+            error: {
+              code: "NOT_FOUND",
+              message: "対象が見つかりません",
+            },
+          };
+        }
+
+        const deleteSet = new Set(ids);
+        mutablePosts = mutablePosts.filter((post) => !deleteSet.has(post.id));
+        return {
+          ok: true,
+          data: {
+            deletedPostIds: ids,
+          },
+        };
+      }
+    );
+
+    getPostActionsMock().emptyTrashAction.mockImplementation(async () => {
+      const beforeCount = mutablePosts.length;
+      mutablePosts = mutablePosts.filter((post) => typeof post.trashedAt === "undefined");
+      return {
+        ok: true,
+        data: {
+          deletedCount: beforeCount - mutablePosts.length,
+        },
+      };
+    });
   });
 
   it("replaces missing view query with view=memo on initial render", async () => {
@@ -904,8 +948,11 @@ describe("AuthedScreen", () => {
 
     renderAuthedScreen();
 
-    const noteBody = await screen.findByText(/今日の学び/);
-    const noteCard = noteBody.closest("article");
+    await screen.findByText(/今日の学び/);
+    const noteContent = screen
+      .getAllByTestId("post-content")
+      .find((element) => element.textContent?.includes("今日の学び"));
+    const noteCard = noteContent?.closest("article");
     if (!noteCard) {
       throw new Error("note card not found");
     }
@@ -1012,6 +1059,32 @@ describe("AuthedScreen", () => {
     expect(toast.error).toHaveBeenCalledWith("現在この環境では投稿機能を利用できません。");
   });
 
+  it("retries initial load when retry button is clicked", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    getPostActionsMock().listPostsAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "初回取得に失敗しました",
+      },
+    });
+
+    renderAuthedScreen();
+
+    expect(await screen.findByText("初回取得に失敗しました")).toBeInTheDocument();
+    expect(screen.queryByText("買い物メモ: 牛乳、パン、トマト")).not.toBeInTheDocument();
+    const retryButton = screen.getByRole("button", { name: "再試行" });
+
+    await user.click(retryButton);
+
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+    });
+    expect(await screen.findByText("買い物メモ: 牛乳、パン、トマト")).toBeInTheDocument();
+    expect(screen.queryByText("初回取得に失敗しました")).not.toBeInTheDocument();
+  });
+
   it("restores trash item through restoreFromTrashAction", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
@@ -1050,16 +1123,53 @@ describe("AuthedScreen", () => {
     expect(screen.getByText("破棄候補メモ: 先週の打ち合わせメモ")).toBeInTheDocument();
   });
 
-  it("keeps permanent delete as stub action for row button", async () => {
+  it("deletes trash row immediately on permanent delete", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
     renderAuthedScreen();
 
+    await screen.findByText("破棄候補メモ: 先週の打ち合わせメモ");
     const deleteButtons = await screen.findAllByRole("button", { name: "完全に削除" });
     await user.click(deleteButtons[0]);
 
-    expect(toast).toHaveBeenCalledWith("未実装です");
+    await waitFor(() => {
+      expect(getPostActionsMock().deleteTrashPostsAction).toHaveBeenCalledWith({
+        postIds: ["trash-001"],
+      });
+    });
+    expect(toast).toHaveBeenCalledWith("投稿を完全に削除しました");
+    expect(screen.queryByText("破棄候補メモ: 先週の打ち合わせメモ")).not.toBeInTheDocument();
+  });
+
+  it("retries row permanent delete after failure", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
+    getPostActionsMock().deleteTrashPostsAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "削除に失敗しました",
+      },
+    });
+
+    renderAuthedScreen();
+
+    await screen.findByText("破棄候補メモ: 先週の打ち合わせメモ");
+    const deleteButtons = await screen.findAllByRole("button", { name: "完全に削除" });
+
+    await user.click(deleteButtons[0]);
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("削除に失敗しました");
+    });
+    expect(screen.getByText("破棄候補メモ: 先週の打ち合わせメモ")).toBeInTheDocument();
+
+    await user.click(deleteButtons[0]);
+    await waitFor(() => {
+      expect(getPostActionsMock().deleteTrashPostsAction).toHaveBeenCalledTimes(2);
+    });
+    expect(toast).toHaveBeenCalledWith("投稿を完全に削除しました");
+    expect(screen.queryByText("破棄候補メモ: 先週の打ち合わせメモ")).not.toBeInTheDocument();
   });
 
   it("creates a memo post and updates the list immediately", async () => {
@@ -1166,6 +1276,49 @@ describe("AuthedScreen", () => {
     expect(toast.error).toHaveBeenCalledWith("内容は最大280文字までです");
     expect(within(memoCard).getByRole("button", { name: "更新する" })).toBeInTheDocument();
     expect(input).toHaveValue("失敗する更新");
+  });
+
+  it.each([
+    { code: "FORBIDDEN", message: "操作権限がありません" },
+    { code: "NOT_FOUND", message: "対象が見つかりません" },
+    { code: "INTERNAL_ERROR", message: "サーバーエラーが発生しました" },
+  ])("keeps memo edit state on $code error", async ({ code, message }) => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    getPostActionsMock().updatePostAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code,
+        message,
+      },
+    });
+
+    renderAuthedScreen();
+
+    const memoCard = (await screen.findByText("買い物メモ: 牛乳、パン、トマト")).closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "編集" }));
+    const input = within(memoCard).getByLabelText("メモ本文");
+    await user.clear(input);
+    await user.type(input, `${code}時に保持される入力`);
+
+    const pushMock = getNavigationMock().__mockNavigation.getPushMock();
+    const replaceMock = getNavigationMock().__mockNavigation.getReplaceMock();
+    const pushCountBefore = pushMock.mock.calls.length;
+    const replaceCountBefore = replaceMock.mock.calls.length;
+
+    await user.click(within(memoCard).getByRole("button", { name: "更新する" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(message);
+    });
+    expect(within(memoCard).getByRole("button", { name: "更新する" })).toBeInTheDocument();
+    expect(input).toHaveValue(`${code}時に保持される入力`);
+    expect(pushMock).toHaveBeenCalledTimes(pushCountBefore);
+    expect(replaceMock).toHaveBeenCalledTimes(replaceCountBefore);
   });
 
   it("keeps note edit modal open and shows error when updatePostAction fails", async () => {
@@ -1313,7 +1466,7 @@ describe("AuthedScreen", () => {
     expect(screen.getByText("表示中の投稿を選択")).toBeInTheDocument();
   });
 
-  it("opens selected-delete confirmation dialog and shows stub toast on confirm", async () => {
+  it("opens selected-delete confirmation dialog and deletes selected posts on confirm", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
@@ -1329,10 +1482,48 @@ describe("AuthedScreen", () => {
 
     await user.click(screen.getByRole("button", { name: "削除する" }));
 
-    expect(toast).toHaveBeenCalledWith("未実装です");
+    await waitFor(() => {
+      expect(getPostActionsMock().deleteTrashPostsAction).toHaveBeenCalledWith({
+        postIds: ["trash-001"],
+      });
+    });
+    expect(toast).toHaveBeenCalledWith("投稿を完全に削除しました");
+    expect(screen.queryByText("破棄候補メモ: 先週の打ち合わせメモ")).not.toBeInTheDocument();
   });
 
-  it("opens empty-trash confirmation dialog and shows stub toast on confirm", async () => {
+  it("keeps selected-delete dialog open on failure and allows retry", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=trash");
+    getPostActionsMock().deleteTrashPostsAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "削除に失敗しました",
+      },
+    });
+
+    renderAuthedScreen();
+
+    await screen.findByRole("checkbox", { name: "trash-001を選択" });
+    await user.click(screen.getByRole("checkbox", { name: "trash-001を選択" }));
+    await user.click(screen.getByRole("button", { name: "選択した投稿を削除" }));
+    await user.click(screen.getByRole("button", { name: "削除する" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("削除に失敗しました");
+    });
+    expect(screen.getByText("1件の投稿を完全に削除しますか?")).toBeInTheDocument();
+    expect(screen.getByText("削除に失敗しました")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "削除する" }));
+    await waitFor(() => {
+      expect(getPostActionsMock().deleteTrashPostsAction).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByText("1件の投稿を完全に削除しますか?")).not.toBeInTheDocument();
+    expect(screen.queryByText("破棄候補メモ: 先週の打ち合わせメモ")).not.toBeInTheDocument();
+  });
+
+  it("opens empty-trash confirmation dialog and clears trash on confirm", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=trash");
 
@@ -1347,7 +1538,11 @@ describe("AuthedScreen", () => {
 
     await user.click(screen.getByRole("button", { name: "削除する" }));
 
-    expect(toast).toHaveBeenCalledWith("未実装です");
+    await waitFor(() => {
+      expect(getPostActionsMock().emptyTrashAction).toHaveBeenCalledTimes(1);
+    });
+    expect(toast).toHaveBeenCalledWith("投稿を完全に削除しました");
+    expect(screen.queryByRole("checkbox", { name: "trash-001を選択" })).not.toBeInTheDocument();
   });
 
   it("resets trash selections when leaving and returning to trash view", async () => {
@@ -1468,6 +1663,9 @@ describe("AuthedScreen", () => {
     await user.click(within(noteCard).getByRole("button", { name: "編集" }));
 
     expect(screen.getByRole("button", { name: "更新する" })).toBeInTheDocument();
+    const titleInput = screen.getByLabelText("ノートタイトル");
+    await user.clear(titleInput);
+    await user.type(titleInput, "保存時ダイアログ確認");
 
     await user.click(screen.getByRole("button", { name: "更新する" }));
 
@@ -1479,6 +1677,11 @@ describe("AuthedScreen", () => {
       );
     });
     expect(toast).toHaveBeenCalledWith("更新しました");
+    await waitFor(() => {
+      expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
+    expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenLastCalledWith("/?view=note");
   });
 
   it("shows discard confirmation on query change while memo edit is dirty", async () => {
@@ -1671,5 +1874,185 @@ describe("AuthedScreen", () => {
       expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
     });
     expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
+  });
+
+  it("pushes noteComposer query on open and removes it on clean close", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    renderAuthedScreen();
+
+    await user.click(screen.getByRole("button", { name: "ノートを書く" }));
+
+    await waitFor(() => {
+      expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenCalledWith(
+        "/?view=note&noteComposer=create"
+      );
+    });
+
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+    await waitFor(() => {
+      expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenCalledWith("/?view=note");
+    });
+  });
+
+  it("pushes noteComposer edit query when opening note edit", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    renderAuthedScreen();
+
+    const noteCard = (await screen.findByText(/今日の学び/)).closest("article");
+    if (!noteCard) {
+      throw new Error("note card not found");
+    }
+
+    await user.click(within(noteCard).getByRole("button", { name: "編集" }));
+    await waitFor(() => {
+      expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenCalledWith(
+        "/?view=note&noteComposer=edit%3Apost-002"
+      );
+    });
+  });
+
+  it("opens login dialog and keeps memo draft on UNAUTHORIZED", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    getPostActionsMock().createPostAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      },
+    });
+
+    renderAuthedScreen();
+
+    const input = await screen.findByLabelText("メモ本文");
+    await user.type(input, "401でも保持されるメモ");
+    await user.click(screen.getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("ログインが必要です");
+    });
+    expect(input).toHaveValue("401でも保持されるメモ");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "ログイン" })).toBeInTheDocument();
+  });
+
+  it("keeps note input and opens login dialog on UNAUTHORIZED", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+    getPostActionsMock().updatePostAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      },
+    });
+
+    renderAuthedScreen();
+
+    const noteCard = (await screen.findByText(/今日の学び/)).closest("article");
+    if (!noteCard) {
+      throw new Error("note card not found");
+    }
+
+    await user.click(within(noteCard).getByRole("button", { name: "編集" }));
+    const titleInput = screen.getByLabelText("ノートタイトル");
+    await user.clear(titleInput);
+    await user.type(titleInput, "401でも保持されるノートタイトル");
+    await user.click(screen.getByRole("button", { name: "更新する" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("ログインが必要です");
+    });
+    expect(screen.getByRole("heading", { name: "ログイン" })).toBeInTheDocument();
+    expect(screen.getByLabelText("ノートタイトル")).toHaveValue("401でも保持されるノートタイトル");
+  });
+
+  it("allows continuing memo save after login flow", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    getPostActionsMock().createPostAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      },
+    });
+
+    renderAuthedScreen({
+      stubAuthEnabled: true,
+      loginUrl: "/?view=memo",
+    });
+
+    const input = await screen.findByLabelText("メモ本文");
+    await user.type(input, "ログイン後に保存するメモ");
+    await user.click(screen.getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("ログインが必要です");
+    });
+    expect(screen.getByRole("heading", { name: "ログイン" })).toBeInTheDocument();
+    expect(input).toHaveValue("ログイン後に保存するメモ");
+
+    await user.click(screen.getByRole("button", { name: "Googleでログイン" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "ログイン" })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "保存する" }));
+    await waitFor(() => {
+      expect(getPostActionsMock().createPostAction).toHaveBeenCalledTimes(2);
+    });
+    expect(toast).toHaveBeenCalledWith("保存しました");
+    expect(screen.getByText("ログイン後に保存するメモ")).toBeInTheDocument();
+  });
+
+  it("allows continuing note update after login flow", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+    getPostActionsMock().updatePostAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      },
+    });
+
+    renderAuthedScreen({
+      stubAuthEnabled: true,
+      loginUrl: "/?view=note&noteComposer=edit%3Apost-002",
+    });
+
+    const noteCard = (await screen.findByText(/今日の学び/)).closest("article");
+    if (!noteCard) {
+      throw new Error("note card not found");
+    }
+
+    await user.click(within(noteCard).getByRole("button", { name: "編集" }));
+    const titleInput = screen.getByLabelText("ノートタイトル");
+    await user.clear(titleInput);
+    await user.type(titleInput, "ログイン後に更新するノート");
+    await user.click(screen.getByRole("button", { name: "更新する" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("ログインが必要です");
+    });
+    expect(screen.getByRole("heading", { name: "ログイン" })).toBeInTheDocument();
+    expect(screen.getByLabelText("ノートタイトル")).toHaveValue("ログイン後に更新するノート");
+
+    await user.click(screen.getByRole("button", { name: "Googleでログイン" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "ログイン" })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "更新する" }));
+    await waitFor(() => {
+      expect(getPostActionsMock().updatePostAction).toHaveBeenCalledTimes(2);
+    });
+    expect(toast).toHaveBeenCalledWith("更新しました");
+    expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
   });
 });

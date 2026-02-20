@@ -95,6 +95,7 @@ export default function Container2({
             type="button"
             variant="outline"
             size="sm"
+            data-testid="favorite-filter-toggle"
             className={cn("ml-auto gap-2", favoriteOnly && "border-amber-400 text-amber-500")}
             onClick={onFavoriteToggle}
             aria-pressed={favoriteOnly}

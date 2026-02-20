@@ -1,16 +1,20 @@
 export type PostErrorCode =
+  | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "NOT_IMPLEMENTED"
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
-  | "INVALID_CURSOR";
+  | "INVALID_CURSOR"
+  | "INTERNAL_ERROR";
 
 const STATUS_BY_CODE: Record<PostErrorCode, number> = {
+  UNAUTHORIZED: 401,
   FORBIDDEN: 403,
   NOT_IMPLEMENTED: 501,
   VALIDATION_ERROR: 400,
   NOT_FOUND: 404,
   INVALID_CURSOR: 400,
+  INTERNAL_ERROR: 500,
 };
 
 export class PostRepositoryError extends Error {

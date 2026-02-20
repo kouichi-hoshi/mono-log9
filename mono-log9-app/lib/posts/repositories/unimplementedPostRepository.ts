@@ -12,4 +12,6 @@ export const unimplementedPostRepository: PostRepository = {
   setFavorite: async () => notImplemented(),
   moveToTrash: async () => notImplemented(),
   restoreFromTrash: async () => notImplemented(),
+  deleteTrashPosts: async () => notImplemented(),
+  emptyTrash: async () => notImplemented(),
 };

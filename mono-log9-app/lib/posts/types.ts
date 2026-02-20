@@ -66,6 +66,18 @@ export type RestoreFromTrashInput = {
   postId: string;
 };
 
+export type DeleteTrashPostsInput = {
+  postIds: string[];
+};
+
+export type DeleteTrashPostsResult = {
+  deletedPostIds: string[];
+};
+
+export type EmptyTrashResult = {
+  deletedCount: number;
+};
+
 export type PostRepository = {
   listPosts: (input: ListPostsInput) => Promise<ListPostsResult>;
   createPost: (input: ValidatedCreatePostDto) => Promise<PostRecord>;
@@ -73,4 +85,6 @@ export type PostRepository = {
   setFavorite: (input: SetFavoriteInput) => Promise<PostRecord>;
   moveToTrash: (input: MoveToTrashInput) => Promise<void>;
   restoreFromTrash: (input: RestoreFromTrashInput) => Promise<void>;
+  deleteTrashPosts: (input: DeleteTrashPostsInput) => Promise<DeleteTrashPostsResult>;
+  emptyTrash: () => Promise<EmptyTrashResult>;
 };

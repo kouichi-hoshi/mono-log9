@@ -8,6 +8,9 @@ import {
 import { PostRepositoryError } from "@/lib/posts/errors";
 import { cloneInitialStubPosts } from "@/lib/posts/stubSeed";
 import type {
+  DeleteTrashPostsInput,
+  DeleteTrashPostsResult,
+  EmptyTrashResult,
   ListPostsInput,
   ListPostsResult,
   MoveToTrashInput,
@@ -63,6 +66,16 @@ function validateBoolean(value: unknown) {
   if (typeof value !== "boolean") {
     throw new PostRepositoryError("VALIDATION_ERROR", "入力内容に不備があります");
   }
+}
+
+function normalizeDeletePostIds(postIds: string[]): string[] {
+  const uniqueIds = new Set<string>();
+  for (const postId of postIds) {
+    validatePostId(postId);
+    uniqueIds.add(postId);
+  }
+
+  return Array.from(uniqueIds);
 }
 
 function normalizeLimit(limit: number | undefined): number {
@@ -267,6 +280,41 @@ export const stubPostRepository: PostRepository = {
     }
 
     target.trashedAt = undefined;
+  },
+
+  async deleteTrashPosts(input: DeleteTrashPostsInput): Promise<DeleteTrashPostsResult> {
+    ensureDevelopmentOnly();
+
+    if (!Array.isArray(input.postIds)) {
+      throw new PostRepositoryError("VALIDATION_ERROR", "入力内容に不備があります");
+    }
+
+    const normalizedPostIds = normalizeDeletePostIds(input.postIds);
+    if (normalizedPostIds.length === 0) {
+      return { deletedPostIds: [] };
+    }
+
+    for (const postId of normalizedPostIds) {
+      const target = findPost(postId);
+      if (typeof target.trashedAt === "undefined") {
+        throw new PostRepositoryError("NOT_FOUND", "対象が見つかりません");
+      }
+    }
+
+    const deleteSet = new Set(normalizedPostIds);
+    posts = posts.filter((post) => !deleteSet.has(post.id));
+
+    return { deletedPostIds: normalizedPostIds };
+  },
+
+  async emptyTrash(): Promise<EmptyTrashResult> {
+    ensureDevelopmentOnly();
+
+    const beforeCount = posts.length;
+    posts = posts.filter((post) => typeof post.trashedAt === "undefined");
+    const deletedCount = beforeCount - posts.length;
+
+    return { deletedCount };
   },
 };
 

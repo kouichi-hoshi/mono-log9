@@ -1,5 +1,7 @@
 import {
   createPostAction,
+  deleteTrashPostsAction,
+  emptyTrashAction,
   listPostsAction,
   moveToTrashAction,
   restoreFromTrashAction,
@@ -18,6 +20,8 @@ jest.mock("@/lib/posts/postRepository", () => ({
     setFavorite: jest.fn(),
     moveToTrash: jest.fn(),
     restoreFromTrash: jest.fn(),
+    deleteTrashPosts: jest.fn(),
+    emptyTrash: jest.fn(),
   },
 }));
 
@@ -93,6 +97,8 @@ describe("postActions", () => {
     });
     getRepositoryMock().moveToTrash.mockResolvedValue(undefined);
     getRepositoryMock().restoreFromTrash.mockResolvedValue(undefined);
+    getRepositoryMock().deleteTrashPosts.mockResolvedValue({ deletedPostIds: ["trash-001"] });
+    getRepositoryMock().emptyTrash.mockResolvedValue({ deletedCount: 3 });
 
     await expect(
       createPostAction({ mode: "memo", content: createDocFromPlainText("a") })
@@ -118,6 +124,14 @@ describe("postActions", () => {
     await expect(restoreFromTrashAction({ postId: "post-100" })).resolves.toEqual({
       ok: true,
       data: null,
+    });
+    await expect(deleteTrashPostsAction({ postIds: ["trash-001"] })).resolves.toEqual({
+      ok: true,
+      data: { deletedPostIds: ["trash-001"] },
+    });
+    await expect(emptyTrashAction()).resolves.toEqual({
+      ok: true,
+      data: { deletedCount: 3 },
     });
   });
 
@@ -262,5 +276,19 @@ describe("postActions", () => {
       },
     });
     expect(getRepositoryMock().updatePost).not.toHaveBeenCalled();
+  });
+
+  it("returns INTERNAL_ERROR for unknown exceptions", async () => {
+    getRepositoryMock().listPosts.mockRejectedValue(new Error("unexpected"));
+
+    const result = await listPostsAction({ view: "memo", favoriteOnly: false, limit: 10 });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "エラーが発生しました",
+      },
+    });
   });
 });

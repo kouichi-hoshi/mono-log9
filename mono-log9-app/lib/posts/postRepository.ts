@@ -30,4 +30,10 @@ export const postRepository: PostRepository = {
   async restoreFromTrash(input) {
     return resolvePostRepository().restoreFromTrash(input);
   },
+  async deleteTrashPosts(input) {
+    return resolvePostRepository().deleteTrashPosts(input);
+  },
+  async emptyTrash() {
+    return resolvePostRepository().emptyTrash();
+  },
 };

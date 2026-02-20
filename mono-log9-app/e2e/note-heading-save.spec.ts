@@ -54,3 +54,20 @@ test("ノート平文は保存できる", async ({ page }) => {
   await page.getByRole("button", { name: "保存する" }).click();
   await expect(page.getByText("E2E Note Plain")).toBeVisible();
 });
+
+test("ノート新規保存後に破棄確認ダイアログを表示しない", async ({ page }) => {
+  await page.goto("/?stubAuth=1&view=note");
+  await page.getByRole("button", { name: "ノートを書く" }).click();
+
+  const title = `E2E Save No Discard ${Date.now()}`;
+  await page.getByLabel("ノートタイトル").fill(title);
+  const editor = page.getByLabel("ノート本文");
+  await editor.click();
+  await editor.fill("保存後に破棄確認が出ないことを確認");
+
+  await page.getByRole("button", { name: "保存する" }).click();
+
+  await expect(page.getByText("編集中の内容があります。破棄して続行しますか？")).toHaveCount(0);
+  await expect(page.getByLabel("ノートタイトル")).toHaveCount(0);
+  await expect(page.getByText(title)).toBeVisible();
+});

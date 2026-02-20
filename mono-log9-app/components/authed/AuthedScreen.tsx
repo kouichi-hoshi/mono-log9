@@ -8,11 +8,15 @@ import { toast } from "sonner";
 
 import {
   createPostAction,
+  deleteTrashPostsAction,
+  emptyTrashAction,
   moveToTrashAction,
   restoreFromTrashAction,
   setFavoriteAction,
+  type ActionError,
   updatePostAction,
 } from "@/app/actions/postActions";
+import ControlledLoginDialog from "@/components/auth/ControlledLoginDialog";
 import Container1 from "@/components/authed/Container1";
 import Container2 from "@/components/authed/Container2";
 import HeaderPostArea from "@/components/authed/HeaderPostArea";
@@ -31,6 +35,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   buildQueryForFavoriteToggle,
+  buildQueryForNoteComposerClose,
+  buildQueryForNoteComposerOpen,
   buildQueryForViewChange,
   normalizeAuthedQuery,
   toRootPath,
@@ -58,6 +64,8 @@ import { PostsListQueryError, usePostsInfiniteQuery } from "@/lib/posts/usePosts
 
 type AuthedScreenProps = {
   logoutUrl: string;
+  stubAuthEnabled?: boolean;
+  loginUrl?: string;
 };
 
 type PendingAction =
@@ -73,19 +81,6 @@ type PendingAction =
     }
   | {
       type: "closeMemoEdit";
-    }
-  | {
-      type: "openNoteCreate";
-    }
-  | {
-      type: "openNoteEdit";
-      postId: string;
-      initialTitle: string;
-      initialContent: PostContent | null;
-      initialPlainText: string;
-    }
-  | {
-      type: "closeNoteModal";
     };
 
 function sortByCreatedAtDesc(a: PostRecord, b: PostRecord): number {
@@ -176,12 +171,19 @@ function parsePostsListConditionFromQueryKey(key: QueryKey): PostsListCondition 
   return normalizePostsListCondition({ view, favoriteOnly });
 }
 
-export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
+export default function AuthedScreen({
+  logoutUrl,
+  stubAuthEnabled = false,
+  loginUrl = "/",
+}: AuthedScreenProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
   const queryString = searchParams.toString();
+  const committedQueryRef = React.useRef(queryString);
+  const [committedQueryString, setCommittedQueryString] = React.useState(queryString);
+  const previousQueryRef = React.useRef(queryString);
   const normalizedQuery = React.useMemo(() => normalizeAuthedQuery(queryString), [queryString]);
   const isTrashView = normalizedQuery.state.view === "trash";
   const mode: ViewMode = normalizedQuery.state.activeMode ?? "memo";
@@ -208,7 +210,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const [editingMemoValue, setEditingMemoValue] = React.useState("");
   const [editingMemoInitialValue, setEditingMemoInitialValue] = React.useState("");
 
-  const [isNoteModalOpen, setIsNoteModalOpen] = React.useState(false);
+  const noteComposer = normalizedQuery.state.noteComposer;
   const [noteModalMode, setNoteModalMode] = React.useState<"create" | "edit">("create");
   const [noteModalInitialTitle, setNoteModalInitialTitle] = React.useState("");
   const [noteModalInitialContent, setNoteModalInitialContent] = React.useState<PostContent | null>(
@@ -216,10 +218,24 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   );
   const [noteModalInitialPlainText, setNoteModalInitialPlainText] = React.useState("");
   const [noteModalDirty, setNoteModalDirty] = React.useState(false);
+  const committedQueryState = React.useMemo(
+    () => normalizeAuthedQuery(committedQueryString).state,
+    [committedQueryString]
+  );
+  const shouldKeepNoteModalOpen =
+    noteModalDirty &&
+    queryString !== committedQueryString &&
+    committedQueryState.view === "note" &&
+    committedQueryState.noteComposer.mode !== "none";
+  const isNoteModalOpen =
+    (normalizedQuery.state.view === "note" && noteComposer.mode !== "none") || shouldKeepNoteModalOpen;
   const [editingNotePostId, setEditingNotePostId] = React.useState<string | null>(null);
   const [selectedTrashPostIds, setSelectedTrashPostIds] = React.useState<Set<string>>(() => new Set());
   const [deleteDialogMode, setDeleteDialogMode] = React.useState<"selected" | "all" | null>(null);
+  const [isDeleteSubmitting, setIsDeleteSubmitting] = React.useState(false);
+  const [deleteDialogErrorMessage, setDeleteDialogErrorMessage] = React.useState<string | null>(null);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = React.useState(false);
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = React.useState(false);
   const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
 
   const [isRestoringScroll, setIsRestoringScroll] = React.useState(false);
@@ -229,8 +245,11 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const hasUserScrolledRef = React.useRef(false);
   const isProgrammaticScrollRef = React.useRef(false);
   const loadMoreSentinelElementRef = React.useRef<HTMLDivElement | null>(null);
-  const committedQueryRef = React.useRef(queryString);
-  const previousQueryRef = React.useRef(queryString);
+  const handledInitialErrorKeyRef = React.useRef<string | null>(null);
+  const handledNextPageErrorKeyRef = React.useRef<string | null>(null);
+  const handledMissingNoteComposerRef = React.useRef<string | null>(null);
+  const initializedNoteComposerRef = React.useRef<string | null>(null);
+  const skipDiscardConfirmOnNextNoteCloseRef = React.useRef(false);
 
   const visibleItems = React.useMemo(() => flattenInfiniteItems(listQuery.data), [listQuery.data]);
   const posts = React.useMemo(() => (isTrashView ? [] : visibleItems), [isTrashView, visibleItems]);
@@ -253,11 +272,10 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   const isMemoCreateDirty = memoDraft.length > 0;
   const isMemoEditDirty =
     editingMemoPostId !== null && isMemoDirty(editingMemoInitialValue, editingMemoValue);
-  const isNoteEditDirty = isNoteModalOpen && noteModalDirty;
+  const isNoteEditDirty = noteModalDirty;
   const hasUnsavedEdits = isMemoCreateDirty || isMemoEditDirty || isNoteEditDirty;
 
   const closeNoteModalNow = React.useCallback(() => {
-    setIsNoteModalOpen(false);
     setNoteModalMode("create");
     setNoteModalInitialTitle("");
     setNoteModalInitialContent(null);
@@ -274,12 +292,17 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     closeNoteModalNow();
   }, [closeNoteModalNow]);
 
+  const syncCommittedQuery = React.useCallback((nextQuery: string) => {
+    committedQueryRef.current = nextQuery;
+    setCommittedQueryString(nextQuery);
+  }, []);
+
   const executeAction = React.useCallback(
     (action: PendingAction) => {
       switch (action.type) {
         case "query": {
           saveCurrentScroll();
-          committedQueryRef.current = action.nextQuery;
+          syncCommittedQuery(action.nextQuery);
           if (action.method === "push") {
             router.push(toRootPath(action.nextQuery));
             return;
@@ -299,33 +322,9 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
           setEditingMemoValue("");
           return;
         }
-        case "openNoteCreate": {
-          setNoteModalMode("create");
-          setEditingNotePostId(null);
-          setNoteModalInitialTitle("");
-          setNoteModalInitialContent(null);
-          setNoteModalInitialPlainText("");
-          setNoteModalDirty(false);
-          setIsNoteModalOpen(true);
-          return;
-        }
-        case "openNoteEdit": {
-          setNoteModalMode("edit");
-          setEditingNotePostId(action.postId);
-          setNoteModalInitialTitle(action.initialTitle);
-          setNoteModalInitialContent(action.initialContent);
-          setNoteModalInitialPlainText(action.initialPlainText);
-          setNoteModalDirty(false);
-          setIsNoteModalOpen(true);
-          return;
-        }
-        case "closeNoteModal": {
-          closeNoteModalNow();
-          return;
-        }
       }
     },
-    [closeNoteModalNow, router, saveCurrentScroll]
+    [router, saveCurrentScroll, syncCommittedQuery]
   );
 
   const runOrConfirm = React.useCallback(
@@ -340,6 +339,21 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     },
     [executeAction, hasUnsavedEdits]
   );
+
+  const handleActionError = React.useCallback((error: ActionError | { code: string; message: string }) => {
+    if (error.code === "UNAUTHORIZED") {
+      toast.error(error.message || "ログインが必要です");
+      setIsLoginDialogOpen(true);
+      return;
+    }
+
+    if (error.code === "INTERNAL_ERROR" || error.code === "NOT_IMPLEMENTED") {
+      toast.error(error.message || "サーバーエラーが発生しました");
+      return;
+    }
+
+    toast.error(error.message);
+  }, []);
 
   React.useEffect(() => {
     const handlePopState = () => {
@@ -357,11 +371,11 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       return;
     }
 
-    committedQueryRef.current = normalizedQuery.nextQuery;
+    syncCommittedQuery(normalizedQuery.nextQuery);
     previousQueryRef.current = normalizedQuery.nextQuery;
     saveCurrentScroll();
     router.replace(toRootPath(normalizedQuery.nextQuery));
-  }, [normalizedQuery.changed, normalizedQuery.nextQuery, router, saveCurrentScroll]);
+  }, [normalizedQuery.changed, normalizedQuery.nextQuery, router, saveCurrentScroll, syncCommittedQuery]);
 
   React.useEffect(() => {
     if (normalizedQuery.changed) {
@@ -378,11 +392,11 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     isPopstateNavigationRef.current = false;
 
     if (!hasUnsavedEdits) {
-      committedQueryRef.current = queryString;
+      syncCommittedQuery(queryString);
       return;
     }
 
-    const committedQuery = committedQueryRef.current;
+    const committedQuery = committedQueryString;
     if (queryString === committedQuery) {
       return;
     }
@@ -397,7 +411,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     if (isPopstateNavigation || queryString !== committedQuery) {
       router.replace(toRootPath(committedQuery));
     }
-  }, [hasUnsavedEdits, normalizedQuery.changed, queryString, router]);
+  }, [committedQueryString, hasUnsavedEdits, normalizedQuery.changed, queryString, router, syncCommittedQuery]);
 
   React.useEffect(() => {
     restoredScrollKeyRef.current = null;
@@ -471,20 +485,44 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
   }, [listCondition, scrollStorageKey]);
 
   React.useEffect(() => {
-    if (!initialErrorMessage) {
+    if (!listQuery.isError || listQuery.data) {
+      handledInitialErrorKeyRef.current = null;
       return;
     }
 
-    toast.error(initialErrorMessage);
-  }, [initialErrorMessage]);
+    const code = listQuery.error?.code ?? "INTERNAL_ERROR";
+    const message = initialErrorMessage ?? listQuery.error?.message ?? "エラーが発生しました";
+    const signature = `${code}:${message}`;
+    if (handledInitialErrorKeyRef.current === signature) {
+      return;
+    }
+
+    handledInitialErrorKeyRef.current = signature;
+    handleActionError({ code, message });
+  }, [handleActionError, initialErrorMessage, listQuery.data, listQuery.error, listQuery.isError]);
 
   React.useEffect(() => {
-    if (!nextPageErrorMessage) {
+    if (!listQuery.isFetchNextPageError || !listQuery.data) {
+      handledNextPageErrorKeyRef.current = null;
       return;
     }
 
-    toast.error(nextPageErrorMessage);
-  }, [nextPageErrorMessage]);
+    const code = listQuery.error?.code ?? "INTERNAL_ERROR";
+    const message = nextPageErrorMessage ?? listQuery.error?.message ?? "エラーが発生しました";
+    const signature = `${code}:${message}`;
+    if (handledNextPageErrorKeyRef.current === signature) {
+      return;
+    }
+
+    handledNextPageErrorKeyRef.current = signature;
+    handleActionError({ code, message });
+  }, [
+    handleActionError,
+    listQuery.data,
+    listQuery.error,
+    listQuery.isFetchNextPageError,
+    nextPageErrorMessage,
+  ]);
 
   const loadMoreSentinelRef = React.useCallback((element: HTMLDivElement | null) => {
     loadMoreSentinelElementRef.current = element;
@@ -647,6 +685,91 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     }
   }, [isTrashView]);
 
+  React.useEffect(() => {
+    if (!isNoteModalOpen) {
+      if (noteModalDirty) {
+        return;
+      }
+
+      handledMissingNoteComposerRef.current = null;
+      initializedNoteComposerRef.current = null;
+      closeNoteModalNow();
+      return;
+    }
+
+    if (noteComposer.mode === "create") {
+      if (initializedNoteComposerRef.current === "create") {
+        return;
+      }
+
+      initializedNoteComposerRef.current = "create";
+      handledMissingNoteComposerRef.current = null;
+      setNoteModalMode("create");
+      setEditingNotePostId(null);
+      setNoteModalInitialTitle("");
+      setNoteModalInitialContent(null);
+      setNoteModalInitialPlainText("");
+      setNoteModalDirty(false);
+      return;
+    }
+
+    if (noteComposer.mode !== "edit") {
+      return;
+    }
+
+    const targetPost =
+      visibleItems.find((post) => post.id === noteComposer.postId) ??
+      findInCachedPostLists(noteComposer.postId);
+
+    if (!targetPost && !listQuery.data && listQuery.isFetching) {
+      return;
+    }
+
+    if (
+      !targetPost ||
+      targetPost.mode !== "note" ||
+      typeof targetPost.trashedAt !== "undefined"
+    ) {
+      const signature = `${noteComposer.mode}:${noteComposer.postId}`;
+      if (handledMissingNoteComposerRef.current === signature) {
+        return;
+      }
+
+      handledMissingNoteComposerRef.current = signature;
+      toast.error("対象が見つかりません");
+      const next = buildQueryForNoteComposerClose(queryString);
+      syncCommittedQuery(next.nextQuery);
+      router.replace(toRootPath(next.nextQuery));
+      return;
+    }
+
+    const initializedSignature = `edit:${targetPost.id}`;
+    if (initializedNoteComposerRef.current === initializedSignature) {
+      return;
+    }
+
+    initializedNoteComposerRef.current = initializedSignature;
+    handledMissingNoteComposerRef.current = null;
+    setNoteModalMode("edit");
+    setEditingNotePostId(targetPost.id);
+    setNoteModalInitialTitle(targetPost.title ?? "");
+    setNoteModalInitialContent(clonePostContent(targetPost.content));
+    setNoteModalInitialPlainText(targetPost.contentText);
+    setNoteModalDirty(false);
+  }, [
+    closeNoteModalNow,
+    findInCachedPostLists,
+    isNoteModalOpen,
+    listQuery.data,
+    listQuery.isFetching,
+    noteModalDirty,
+    noteComposer,
+    queryString,
+    router,
+    syncCommittedQuery,
+    visibleItems,
+  ]);
+
   const syncFavoriteInCurrentViewCaches = React.useCallback(
     (updated: PostRecord) => {
       const entries = queryClient.getQueriesData<PostsInfiniteData>({ queryKey: ["posts"] });
@@ -698,18 +821,27 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       });
 
       if (!result.ok) {
-        toast.error(result.error.message);
+        handleActionError(result.error);
         return;
       }
 
       syncFavoriteInCurrentViewCaches(result.data);
     },
-    [syncFavoriteInCurrentViewCaches, visibleItems]
+    [handleActionError, syncFavoriteInCurrentViewCaches, visibleItems]
   );
 
   const handleOpenNoteCreate = React.useCallback(() => {
-    runOrConfirm({ type: "openNoteCreate" });
-  }, [runOrConfirm]);
+    const next = buildQueryForNoteComposerOpen(queryString, { mode: "create" });
+    if (!next.changed) {
+      return;
+    }
+
+    runOrConfirm({
+      type: "query",
+      method: "push",
+      nextQuery: next.nextQuery,
+    });
+  }, [queryString, runOrConfirm]);
 
   const handleEdit = React.useCallback(
     (postId: string) => {
@@ -727,15 +859,21 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
         return;
       }
 
-      runOrConfirm({
-        type: "openNoteEdit",
+      const next = buildQueryForNoteComposerOpen(queryString, {
+        mode: "edit",
         postId,
-        initialTitle: target.title ?? "",
-        initialContent: clonePostContent(target.content),
-        initialPlainText: target.contentText,
+      });
+      if (!next.changed) {
+        return;
+      }
+
+      runOrConfirm({
+        type: "query",
+        method: "push",
+        nextQuery: next.nextQuery,
       });
     },
-    [posts, runOrConfirm]
+    [posts, queryString, runOrConfirm]
   );
 
   const upsertPostInVisibleList = React.useCallback(
@@ -751,6 +889,18 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     [favoriteOnly, normalizedQuery.state.view, queryClient, queryKey, updateCurrentQueryItems]
   );
 
+  const removePostsFromAllCaches = React.useCallback(
+    (postIds: string[]) => {
+      if (postIds.length === 0) {
+        return;
+      }
+
+      const removeSet = new Set(postIds);
+      updateAllCachedPostLists((_, items) => items.filter((post) => !removeSet.has(post.id)));
+    },
+    [updateAllCachedPostLists]
+  );
+
   const handleMemoSaveStub = React.useCallback(
     async (value: string) => {
       const result = await createPostAction({
@@ -759,7 +909,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       });
 
       if (!result.ok) {
-        toast.error(result.error.message);
+        handleActionError(result.error);
         return false;
       }
 
@@ -768,7 +918,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       toast("保存しました");
       return true;
     },
-    [upsertPostInVisibleList]
+    [handleActionError, upsertPostInVisibleList]
   );
 
   const handleMemoEditSaveStub = React.useCallback(
@@ -779,7 +929,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       });
 
       if (!result.ok) {
-        toast.error(result.error.message);
+        handleActionError(result.error);
         return false;
       }
 
@@ -790,7 +940,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       toast("更新しました");
       return true;
     },
-    [upsertPostInVisibleList]
+    [handleActionError, upsertPostInVisibleList]
   );
 
   const handleMemoEditCancel = React.useCallback(() => {
@@ -818,13 +968,14 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
             });
 
       if (!result.ok) {
-        toast.error(result.error.message);
+        handleActionError(result.error);
         return false;
       }
 
       upsertPostInVisibleList(result.data);
       toast(noteModalMode === "edit" ? "更新しました" : "保存しました");
       setNoteModalDirty(false);
+      skipDiscardConfirmOnNextNoteCloseRef.current = true;
 
       if (noteModalMode === "edit") {
         setNoteModalMode("create");
@@ -833,7 +984,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
 
       return true;
     },
-    [editingNotePostId, noteModalMode, upsertPostInVisibleList]
+    [editingNotePostId, handleActionError, noteModalMode, upsertPostInVisibleList]
   );
 
   const handleToggleTrashPostSelection = React.useCallback((postId: string, checked: boolean) => {
@@ -860,6 +1011,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     if (selectedTrashPostIds.size === 0) {
       return;
     }
+    setDeleteDialogErrorMessage(null);
     setDeleteDialogMode("selected");
   }, [selectedTrashPostIds]);
 
@@ -867,19 +1019,80 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     if (trashPosts.length === 0) {
       return;
     }
+    setDeleteDialogErrorMessage(null);
     setDeleteDialogMode("all");
   }, [trashPosts.length]);
 
-  const handleConfirmDelete = React.useCallback(() => {
-    toast("未実装です");
+  const handleConfirmDelete = React.useCallback(async () => {
+    if (!deleteDialogMode || isDeleteSubmitting) {
+      return;
+    }
+
+    setIsDeleteSubmitting(true);
+    setDeleteDialogErrorMessage(null);
+
+    if (deleteDialogMode === "selected") {
+      const postIds = Array.from(selectedTrashPostIds);
+      const result = await deleteTrashPostsAction({ postIds });
+      if (!result.ok) {
+        handleActionError(result.error);
+        setDeleteDialogErrorMessage(result.error.message);
+        setIsDeleteSubmitting(false);
+        return;
+      }
+
+      removePostsFromAllCaches(result.data.deletedPostIds);
+      setSelectedTrashPostIds((current) => {
+        const next = new Set(current);
+        for (const postId of result.data.deletedPostIds) {
+          next.delete(postId);
+        }
+        return next;
+      });
+      toast("投稿を完全に削除しました");
+      setDeleteDialogMode(null);
+      setIsDeleteSubmitting(false);
+      return;
+    }
+
+    const result = await emptyTrashAction();
+    if (!result.ok) {
+      handleActionError(result.error);
+      setDeleteDialogErrorMessage(result.error.message);
+      setIsDeleteSubmitting(false);
+      return;
+    }
+
+    updateAllCachedPostLists((condition, items) => {
+      if (condition.view === "trash") {
+        return [];
+      }
+
+      return items.filter((post) => typeof post.trashedAt === "undefined");
+    });
+    setSelectedTrashPostIds(new Set());
+    toast("投稿を完全に削除しました");
     setDeleteDialogMode(null);
-  }, []);
+    setIsDeleteSubmitting(false);
+  }, [
+    deleteDialogMode,
+    handleActionError,
+    isDeleteSubmitting,
+    removePostsFromAllCaches,
+    selectedTrashPostIds,
+    updateAllCachedPostLists,
+  ]);
 
   const handleDeleteDialogOpenChange = React.useCallback((open: boolean) => {
+    if (isDeleteSubmitting) {
+      return;
+    }
+
     if (!open) {
       setDeleteDialogMode(null);
+      setDeleteDialogErrorMessage(null);
     }
-  }, []);
+  }, [isDeleteSubmitting]);
 
   const handleDiscardDialogOpenChange = React.useCallback((open: boolean) => {
     setIsDiscardDialogOpen(open);
@@ -898,27 +1111,53 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
     }
   }, [discardCurrentEdits, executeAction, pendingAction]);
 
-  const handleNoteModalOpenChange = React.useCallback(
-    (open: boolean) => {
-      if (open) {
-        setIsNoteModalOpen(true);
-        return;
-      }
+  const handleNoteModalOpenChange = React.useCallback((open: boolean) => {
+    if (open) {
+      return;
+    }
 
-      closeNoteModalNow();
-    },
-    [closeNoteModalNow]
-  );
+    const next = buildQueryForNoteComposerClose(queryString);
+    if (skipDiscardConfirmOnNextNoteCloseRef.current) {
+      skipDiscardConfirmOnNextNoteCloseRef.current = false;
+      if (next.changed) {
+        executeAction({
+          type: "query",
+          method: "push",
+          nextQuery: next.nextQuery,
+        });
+      }
+      return;
+    }
+
+    if (!next.changed) {
+      return;
+    }
+
+    runOrConfirm({
+      type: "query",
+      method: "push",
+      nextQuery: next.nextQuery,
+    });
+  }, [executeAction, queryString, runOrConfirm]);
 
   const handleNoteModalRequestClose = React.useCallback(() => {
-    runOrConfirm({ type: "closeNoteModal" });
-  }, [runOrConfirm]);
+    const next = buildQueryForNoteComposerClose(queryString);
+    if (!next.changed) {
+      return;
+    }
+
+    runOrConfirm({
+      type: "query",
+      method: "push",
+      nextQuery: next.nextQuery,
+    });
+  }, [queryString, runOrConfirm]);
 
   const handleMoveToTrash = React.useCallback(
     async (postId: string) => {
       const result = await moveToTrashAction({ postId });
       if (!result.ok) {
-        toast.error(result.error.message);
+        handleActionError(result.error);
         return;
       }
 
@@ -949,14 +1188,14 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       }
       toast("投稿を削除しました");
     },
-    [editingMemoPostId, findInCachedPostLists, updateAllCachedPostLists, visibleItems]
+    [editingMemoPostId, findInCachedPostLists, handleActionError, updateAllCachedPostLists, visibleItems]
   );
 
   const handleRestoreTrashPostStub = React.useCallback(
     async (postId: string) => {
       const result = await restoreFromTrashAction({ postId });
       if (!result.ok) {
-        toast.error(result.error.message);
+        handleActionError(result.error);
         return;
       }
 
@@ -992,13 +1231,27 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
       });
       toast("投稿を復元しました");
     },
-    [findInCachedPostLists, updateAllCachedPostLists, visibleItems]
+    [findInCachedPostLists, handleActionError, updateAllCachedPostLists, visibleItems]
   );
 
-  const handlePermanentDeleteTrashPostStub = React.useCallback((postId: string) => {
-    void postId;
-    toast("未実装です");
-  }, []);
+  const handlePermanentDeleteTrashPost = React.useCallback(
+    async (postId: string) => {
+      const result = await deleteTrashPostsAction({ postIds: [postId] });
+      if (!result.ok) {
+        handleActionError(result.error);
+        return;
+      }
+
+      removePostsFromAllCaches(result.data.deletedPostIds);
+      setSelectedTrashPostIds((current) => {
+        const next = new Set(current);
+        next.delete(postId);
+        return next;
+      });
+      toast("投稿を完全に削除しました");
+    },
+    [handleActionError, removePostsFromAllCaches]
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -1064,7 +1317,7 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
             onRequestDeleteSelectedTrashPosts={handleRequestDeleteSelectedTrashPosts}
             onRequestEmptyTrash={handleRequestEmptyTrash}
             onRestoreTrashPostStub={handleRestoreTrashPostStub}
-            onPermanentDeleteTrashPostStub={handlePermanentDeleteTrashPostStub}
+            onPermanentDeleteTrashPostStub={handlePermanentDeleteTrashPost}
           />
         </article>
       </main>
@@ -1079,8 +1332,14 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
         onDirtyChange={setNoteModalDirty}
         onRequestClose={handleNoteModalRequestClose}
       />
+      <ControlledLoginDialog
+        open={isLoginDialogOpen}
+        onOpenChange={setIsLoginDialogOpen}
+        stubAuthEnabled={stubAuthEnabled}
+        loginUrl={loginUrl}
+      />
       <AlertDialog open={isDiscardDialogOpen} onOpenChange={handleDiscardDialogOpenChange}>
-        <AlertDialogContent>
+        <AlertDialogContent className="z-[70]">
           <AlertDialogHeader>
             <AlertDialogTitle>編集中の内容があります。破棄して続行しますか？</AlertDialogTitle>
             <AlertDialogDescription className="sr-only">
@@ -1094,18 +1353,28 @@ export default function AuthedScreen({ logoutUrl }: AuthedScreenProps) {
         </AlertDialogContent>
       </AlertDialog>
       <AlertDialog open={deleteDialogMode !== null} onOpenChange={handleDeleteDialogOpenChange}>
-        <AlertDialogContent>
+        <AlertDialogContent className="z-[70]">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {deleteDialogMode === "selected"
                 ? `${selectedTrashPostIds.size}件の投稿を完全に削除しますか?`
                 : "ごみ箱内のすべての投稿を完全に削除しますか?"}
             </AlertDialogTitle>
-            <AlertDialogDescription>この操作は取り消せません</AlertDialogDescription>
+            <AlertDialogDescription>
+              {deleteDialogErrorMessage ?? "この操作は取り消せません"}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>キャンセル</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete}>削除する</AlertDialogAction>
+            <AlertDialogCancel disabled={isDeleteSubmitting}>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleteSubmitting}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmDelete();
+              }}
+            >
+              {isDeleteSubmitting ? "削除中..." : "削除する"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1,5 +1,7 @@
 import {
   buildQueryForFavoriteToggle,
+  buildQueryForNoteComposerClose,
+  buildQueryForNoteComposerOpen,
   buildQueryForViewChange,
   normalizeAuthedQuery,
 } from "@/lib/authedQueryState";
@@ -14,6 +16,7 @@ describe("authedQueryState", () => {
         activeMode: "memo",
         favoriteMemo: false,
         favoriteNote: false,
+        noteComposer: { mode: "none" },
       });
       expect(result.nextQuery).toBe("view=memo");
       expect(result.changed).toBe(true);
@@ -44,6 +47,22 @@ describe("authedQueryState", () => {
       expect(result.changed).toBe(true);
     });
 
+    it("drops invalid noteComposer and normalizes query", () => {
+      const result = normalizeAuthedQuery("view=note&noteComposer=invalid");
+
+      expect(result.state.noteComposer).toEqual({ mode: "none" });
+      expect(result.nextQuery).toBe("view=note");
+      expect(result.changed).toBe(true);
+    });
+
+    it("drops noteComposer when view is not note", () => {
+      const result = normalizeAuthedQuery("view=memo&noteComposer=create");
+
+      expect(result.state.noteComposer).toEqual({ mode: "none" });
+      expect(result.nextQuery).toBe("view=memo");
+      expect(result.changed).toBe(true);
+    });
+
     it("keeps unknown query keys", () => {
       const result = normalizeAuthedQuery("stubAuth=1&foo=bar");
 
@@ -60,6 +79,7 @@ describe("authedQueryState", () => {
         activeMode: "note",
         favoriteMemo: false,
         favoriteNote: true,
+        noteComposer: { mode: "none" },
       });
       expect(result.nextQuery).toBe("view=note&stubAuth=1&favoriteNote");
       expect(result.changed).toBe(false);
@@ -78,8 +98,18 @@ describe("authedQueryState", () => {
         activeMode: "note",
         favoriteMemo: true,
         favoriteNote: false,
+        noteComposer: { mode: "none" },
       });
       expect(result.nextQuery).toBe("stubAuth=1&foo=bar&view=note&favoriteMemo=");
+      expect(result.changed).toBe(true);
+    });
+
+    it("clears noteComposer when moving from note to memo", () => {
+      const result = buildQueryForViewChange("view=note&noteComposer=create", "memo");
+
+      expect(result.state.view).toBe("memo");
+      expect(result.state.noteComposer).toEqual({ mode: "none" });
+      expect(result.nextQuery).toBe("view=memo");
       expect(result.changed).toBe(true);
     });
 
@@ -103,6 +133,7 @@ describe("authedQueryState", () => {
         activeMode: "memo",
         favoriteMemo: true,
         favoriteNote: true,
+        noteComposer: { mode: "none" },
       });
       expect(result.nextQuery).toBe(
         "stubAuth=1&foo=bar&view=memo&favoriteMemo=&favoriteNote="
@@ -118,6 +149,7 @@ describe("authedQueryState", () => {
         activeMode: "note",
         favoriteMemo: true,
         favoriteNote: false,
+        noteComposer: { mode: "none" },
       });
       expect(result.nextQuery).toBe("view=note&favoriteMemo=");
       expect(result.changed).toBe(true);
@@ -132,8 +164,58 @@ describe("authedQueryState", () => {
         activeMode: null,
         favoriteMemo: true,
         favoriteNote: false,
+        noteComposer: { mode: "none" },
       });
       expect(result.nextQuery).toBe("view=trash&favoriteMemo");
+    });
+  });
+
+  describe("noteComposer query builders", () => {
+    it("opens note composer in create mode", () => {
+      const result = buildQueryForNoteComposerOpen("view=note&favoriteNote", {
+        mode: "create",
+      });
+
+      expect(result.state.noteComposer).toEqual({ mode: "create" });
+      expect(result.nextQuery).toBe("view=note&favoriteNote=&noteComposer=create");
+      expect(result.changed).toBe(true);
+    });
+
+    it("opens note composer in edit mode", () => {
+      const result = buildQueryForNoteComposerOpen("view=note", {
+        mode: "edit",
+        postId: "post-002",
+      });
+
+      expect(result.state.noteComposer).toEqual({ mode: "edit", postId: "post-002" });
+      expect(result.nextQuery).toBe("view=note&noteComposer=edit%3Apost-002");
+      expect(result.changed).toBe(true);
+    });
+
+    it("returns no-op when open is requested outside note view", () => {
+      const result = buildQueryForNoteComposerOpen("view=memo", {
+        mode: "create",
+      });
+
+      expect(result.changed).toBe(false);
+      expect(result.nextQuery).toBe("view=memo");
+      expect(result.state.noteComposer).toEqual({ mode: "none" });
+    });
+
+    it("closes note composer", () => {
+      const result = buildQueryForNoteComposerClose("view=note&noteComposer=create");
+
+      expect(result.state.noteComposer).toEqual({ mode: "none" });
+      expect(result.nextQuery).toBe("view=note");
+      expect(result.changed).toBe(true);
+    });
+
+    it("returns no-op when composer is already closed", () => {
+      const result = buildQueryForNoteComposerClose("view=note");
+
+      expect(result.changed).toBe(false);
+      expect(result.nextQuery).toBe("view=note");
+      expect(result.state.noteComposer).toEqual({ mode: "none" });
     });
   });
 });

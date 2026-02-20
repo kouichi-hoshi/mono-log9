@@ -17,7 +17,13 @@ export default async function Home({ searchParams }: HomeProps) {
   const authed = isStubAuthed(resolvedSearchParams, stubAuthEnabled);
 
   if (authed) {
-    return <AuthedScreen logoutUrl="/" />;
+    return (
+      <AuthedScreen
+        logoutUrl="/"
+        stubAuthEnabled={stubAuthEnabled}
+        loginUrl={buildUrlWithStubAuth(resolvedSearchParams)}
+      />
+    );
   }
 
   return (

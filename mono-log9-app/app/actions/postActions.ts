@@ -8,6 +8,9 @@ import {
 import { postRepository } from "@/lib/posts/postRepository";
 import type {
   CreatePostInput,
+  DeleteTrashPostsInput,
+  DeleteTrashPostsResult,
+  EmptyTrashResult,
   ListPostsInput,
   ListPostsResult,
   MoveToTrashInput,
@@ -17,7 +20,7 @@ import type {
   UpdatePostInput,
 } from "@/lib/posts/types";
 
-type ActionError = {
+export type ActionError = {
   code: PostErrorCode;
   message: string;
 };
@@ -37,7 +40,13 @@ function toErrorResult(error: unknown): ActionResult<never> {
     };
   }
 
-  throw error;
+  return {
+    ok: false,
+    error: {
+      code: "INTERNAL_ERROR",
+      message: "エラーが発生しました",
+    },
+  };
 }
 
 export async function listPostsAction(input: ListPostsInput): Promise<ActionResult<ListPostsResult>> {
@@ -93,6 +102,26 @@ export async function restoreFromTrashAction(
   try {
     await postRepository.restoreFromTrash(input);
     return { ok: true, data: null };
+  } catch (error) {
+    return toErrorResult(error);
+  }
+}
+
+export async function deleteTrashPostsAction(
+  input: DeleteTrashPostsInput
+): Promise<ActionResult<DeleteTrashPostsResult>> {
+  try {
+    const data = await postRepository.deleteTrashPosts(input);
+    return { ok: true, data };
+  } catch (error) {
+    return toErrorResult(error);
+  }
+}
+
+export async function emptyTrashAction(): Promise<ActionResult<EmptyTrashResult>> {
+  try {
+    const data = await postRepository.emptyTrash();
+    return { ok: true, data };
   } catch (error) {
     return toErrorResult(error);
   }

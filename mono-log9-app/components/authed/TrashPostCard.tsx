@@ -23,7 +23,10 @@ export default function TrashPostCard({
   const checkboxId = `trash-select-${post.id}`;
 
   return (
-    <article className="rounded-lg border border-foreground/10 p-4 shadow-sm">
+    <article
+      data-testid={`trash-post-card-${post.id}`}
+      className="rounded-lg border border-foreground/10 p-4 shadow-sm"
+    >
       <div className="mb-2 flex items-center gap-3 text-xs text-foreground/60">
         <label htmlFor={checkboxId} className="inline-flex items-center gap-2 text-sm text-foreground">
           <Checkbox
