@@ -13,6 +13,347 @@ jest.mock("sonner", () => {
   return { toast };
 });
 
+jest.mock("@/components/ui/dialog", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const DialogContext = React.createContext<{
+    open: boolean;
+    setOpen: (nextOpen: boolean) => void;
+  } | null>(null);
+
+  const useDialogContext = () => {
+    const context = React.useContext(DialogContext);
+    if (!context) {
+      return {
+        open: true,
+        setOpen: () => {},
+      };
+    }
+    return context;
+  };
+
+  const Dialog = ({
+    open,
+    onOpenChange,
+    children,
+  }: {
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    children: React.ReactNode;
+  }) => {
+    const [internalOpen, setInternalOpen] = React.useState(false);
+    const isControlled = typeof open === "boolean";
+    const currentOpen = isControlled ? open : internalOpen;
+    const setOpen = (nextOpen: boolean) => {
+      if (!isControlled) {
+        setInternalOpen(nextOpen);
+      }
+      onOpenChange?.(nextOpen);
+    };
+
+    React.useEffect(() => {
+      if (!currentOpen) {
+        return;
+      }
+
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === "Escape") {
+          if (!isControlled) {
+            setInternalOpen(false);
+          }
+          onOpenChange?.(false);
+        }
+      };
+
+      document.addEventListener("keydown", onKeyDown);
+      return () => {
+        document.removeEventListener("keydown", onKeyDown);
+      };
+    }, [currentOpen, isControlled, onOpenChange]);
+
+    return <DialogContext.Provider value={{ open: currentOpen, setOpen }}>{children}</DialogContext.Provider>;
+  };
+
+  const DialogTrigger = ({
+    asChild,
+    children,
+  }: {
+    asChild?: boolean;
+    children: React.ReactNode;
+  }) => {
+    const { setOpen } = useDialogContext();
+    if (asChild && React.isValidElement<{ onClick?: () => void }>(children)) {
+      return React.cloneElement(children, {
+        onClick: () => {
+          children.props.onClick?.();
+          setOpen(true);
+        },
+      });
+    }
+
+    return (
+      <button type="button" onClick={() => setOpen(true)}>
+        {children}
+      </button>
+    );
+  };
+
+  const DialogContent = ({
+    children,
+    onKeyDown,
+    onEscapeKeyDown,
+    showCloseButton,
+    ...restProps
+  }: {
+    children: React.ReactNode;
+    onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
+    onEscapeKeyDown?: (event: { preventDefault: () => void }) => void;
+    showCloseButton?: boolean;
+  } & React.HTMLAttributes<HTMLDivElement>) => {
+    const { open, setOpen } = useDialogContext();
+    if (!open) {
+      return null;
+    }
+    void showCloseButton;
+    return (
+      <div
+        role="dialog"
+        onKeyDown={(event) => {
+          onKeyDown?.(event);
+          if (event.key !== "Escape") {
+            return;
+          }
+
+          let prevented = false;
+          onEscapeKeyDown?.({
+            preventDefault: () => {
+              prevented = true;
+            },
+          });
+          if (!prevented) {
+            setOpen(false);
+          }
+        }}
+        {...restProps}
+      >
+        {children}
+      </div>
+    );
+  };
+
+  const DialogHeader = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+  const DialogTitle = ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>;
+  const DialogDescription = ({ children }: { children: React.ReactNode }) => <p>{children}</p>;
+  const DialogFooter = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+  const DialogPortal = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+  const DialogOverlay = () => null;
+  const DialogClose = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+
+  return {
+    Dialog,
+    DialogTrigger,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+    DialogPortal,
+    DialogOverlay,
+    DialogClose,
+  };
+});
+
+jest.mock("@/components/ui/alert-dialog", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const AlertDialogContext = React.createContext<{
+    open: boolean;
+    setOpen: (nextOpen: boolean) => void;
+  } | null>(null);
+
+  const useAlertDialogContext = () => {
+    const context = React.useContext(AlertDialogContext);
+    if (!context) {
+      return {
+        open: true,
+        setOpen: () => {},
+      };
+    }
+    return context;
+  };
+
+  const AlertDialog = ({
+    open,
+    onOpenChange,
+    children,
+  }: {
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    children: React.ReactNode;
+  }) => {
+    const [internalOpen, setInternalOpen] = React.useState(false);
+    const isControlled = typeof open === "boolean";
+    const currentOpen = isControlled ? open : internalOpen;
+    const setOpen = (nextOpen: boolean) => {
+      if (!isControlled) {
+        setInternalOpen(nextOpen);
+      }
+      onOpenChange?.(nextOpen);
+    };
+    return (
+      <AlertDialogContext.Provider value={{ open: currentOpen, setOpen }}>
+        {children}
+      </AlertDialogContext.Provider>
+    );
+  };
+
+  const AlertDialogContent = ({
+    children,
+    ...props
+  }: {
+    children: React.ReactNode;
+  } & React.HTMLAttributes<HTMLDivElement>) => {
+    const { open } = useAlertDialogContext();
+    if (!open) {
+      return null;
+    }
+    return (
+      <div role="alertdialog" {...props}>
+        {children}
+      </div>
+    );
+  };
+
+  const AlertDialogAction = ({
+    children,
+    onClick,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => {
+    return (
+      <button
+        type="button"
+        onClick={(event) => {
+          onClick?.(event);
+        }}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  };
+
+  const AlertDialogCancel = ({
+    children,
+    onClick,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => {
+    const { setOpen } = useAlertDialogContext();
+    return (
+      <button
+        type="button"
+        onClick={(event) => {
+          onClick?.(event);
+          setOpen(false);
+        }}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  };
+
+  const AlertDialogHeader = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+  const AlertDialogFooter = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+  const AlertDialogTitle = ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>;
+  const AlertDialogDescription = ({ children }: { children: React.ReactNode }) => <p>{children}</p>;
+  const AlertDialogPortal = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+  const AlertDialogOverlay = () => null;
+  const AlertDialogTrigger = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+
+  return {
+    AlertDialog,
+    AlertDialogPortal,
+    AlertDialogOverlay,
+    AlertDialogTrigger,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogFooter,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogAction,
+    AlertDialogCancel,
+  };
+});
+
+jest.mock("@/components/ui/popover", () => {
+  const React = jest.requireActual<typeof import("react")>("react");
+  const PopoverContext = React.createContext<{
+    open: boolean;
+    setOpen: (nextOpen: boolean) => void;
+  } | null>(null);
+
+  const usePopoverContext = () => {
+    const context = React.useContext(PopoverContext);
+    if (!context) {
+      return {
+        open: false,
+        setOpen: () => {},
+      };
+    }
+    return context;
+  };
+
+  const Popover = ({ children }: { children: React.ReactNode }) => {
+    const [open, setOpen] = React.useState(false);
+    return <PopoverContext.Provider value={{ open, setOpen }}>{children}</PopoverContext.Provider>;
+  };
+
+  const PopoverTrigger = ({
+    asChild,
+    children,
+  }: {
+    asChild?: boolean;
+    children: React.ReactNode;
+  }) => {
+    const { setOpen } = usePopoverContext();
+    if (asChild && React.isValidElement<{ onClick?: () => void }>(children)) {
+      return React.cloneElement(children, {
+        onClick: () => {
+          children.props.onClick?.();
+          setOpen(true);
+        },
+      });
+    }
+
+    return (
+      <button type="button" onClick={() => setOpen(true)}>
+        {children}
+      </button>
+    );
+  };
+
+  const PopoverContent = ({
+    children,
+    ...props
+  }: {
+    children: React.ReactNode;
+  } & React.HTMLAttributes<HTMLDivElement>) => {
+    const { open } = usePopoverContext();
+    if (!open) {
+      return null;
+    }
+    return (
+      <div {...props}>
+        {children}
+      </div>
+    );
+  };
+
+  return {
+    Popover,
+    PopoverTrigger,
+    PopoverContent,
+  };
+});
+
 jest.mock("@/app/actions/postActions", () => ({
   createPostAction: jest.fn(),
   deleteTrashPostsAction: jest.fn(),
@@ -22,6 +363,15 @@ jest.mock("@/app/actions/postActions", () => ({
   restoreFromTrashAction: jest.fn(),
   setFavoriteAction: jest.fn(),
   updatePostAction: jest.fn(),
+}));
+
+jest.mock("@/lib/auth/client", () => ({
+  signInGoogle: jest.fn(),
+  signOutToRoot: jest.fn(async () => "/"),
+}));
+
+jest.mock("@/lib/auth/logoutCleanup", () => ({
+  cleanupAfterLogout: jest.fn(),
 }));
 
 jest.mock("next/navigation", () => {
@@ -118,6 +468,23 @@ function getPostActionsMock() {
   return jest.requireMock("@/app/actions/postActions") as PostActionsModule;
 }
 
+type AuthClientModule = {
+  signInGoogle: jest.Mock;
+  signOutToRoot: jest.Mock;
+};
+
+function getAuthClientMock() {
+  return jest.requireMock("@/lib/auth/client") as AuthClientModule;
+}
+
+type LogoutCleanupModule = {
+  cleanupAfterLogout: jest.Mock;
+};
+
+function getLogoutCleanupMock() {
+  return jest.requireMock("@/lib/auth/logoutCleanup") as LogoutCleanupModule;
+}
+
 function renderAuthedScreen(props?: Partial<ComponentProps<typeof AuthedScreen>>) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -129,11 +496,18 @@ function renderAuthedScreen(props?: Partial<ComponentProps<typeof AuthedScreen>>
 
   const rendered = render(
     <QueryClientProvider client={queryClient}>
-      <AuthedScreen logoutUrl="/" {...props} />
+      <AuthedScreen authMode="stub" {...props} />
     </QueryClientProvider>
   );
 
   return { ...rendered, queryClient };
+}
+
+async function findTodayLearningNoteCard() {
+  const noteContent = (await screen.findAllByTestId("post-content")).find((element) =>
+    element.textContent?.includes("今日の学び")
+  );
+  return noteContent?.closest("article") ?? null;
 }
 
 const basePosts: PostRecord[] = [
@@ -468,6 +842,54 @@ describe("AuthedScreen", () => {
     });
 
     expect(screen.getByRole("heading", { level: 2, name: "メモ" })).toBeInTheDocument();
+  });
+
+  it("logs out with authjs, runs cleanup, and navigates to returned url", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    renderAuthedScreen({ authMode: "authjs" });
+
+    await user.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
+    await user.click(screen.getByRole("button", { name: "ログアウト" }));
+
+    await waitFor(() => {
+      expect(getAuthClientMock().signOutToRoot).toHaveBeenCalledTimes(1);
+    });
+    expect(getLogoutCleanupMock().cleanupAfterLogout).toHaveBeenCalledTimes(1);
+    expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenCalledWith("/");
+  });
+
+  it("shows error and skips cleanup when authjs logout fails", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    getAuthClientMock().signOutToRoot.mockRejectedValueOnce(new Error("logout failed"));
+
+    renderAuthedScreen({ authMode: "authjs" });
+
+    await user.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
+    await user.click(screen.getByRole("button", { name: "ログアウト" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("logout failed");
+    });
+    expect(getLogoutCleanupMock().cleanupAfterLogout).not.toHaveBeenCalled();
+  });
+
+  it("logs out in stub mode without signOut and navigates to root", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo&stubAuth=1");
+
+    renderAuthedScreen({ authMode: "stub" });
+
+    await user.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
+    await user.click(screen.getByRole("button", { name: "ログアウト" }));
+
+    await waitFor(() => {
+      expect(getLogoutCleanupMock().cleanupAfterLogout).toHaveBeenCalledTimes(1);
+    });
+    expect(getAuthClientMock().signOutToRoot).not.toHaveBeenCalled();
+    expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenCalledWith("/");
   });
 
   it("does not replace for already-valid query even when key order is non-canonical", async () => {
@@ -1334,7 +1756,7 @@ describe("AuthedScreen", () => {
 
     renderAuthedScreen();
 
-    const noteCard = (await screen.findByText(/今日の学び/)).closest("article");
+    const noteCard = await findTodayLearningNoteCard();
     if (!noteCard) {
       throw new Error("note card not found");
     }
@@ -1654,7 +2076,7 @@ describe("AuthedScreen", () => {
 
     expect(screen.getByRole("button", { name: "ノートを書く" })).toBeInTheDocument();
 
-    const noteCard = (await screen.findByText(/今日の学び/)).closest("article");
+    const noteCard = await findTodayLearningNoteCard();
 
     if (!noteCard) {
       throw new Error("note card not found");
@@ -1902,7 +2324,7 @@ describe("AuthedScreen", () => {
 
     renderAuthedScreen();
 
-    const noteCard = (await screen.findByText(/今日の学び/)).closest("article");
+    const noteCard = await findTodayLearningNoteCard();
     if (!noteCard) {
       throw new Error("note card not found");
     }
@@ -1917,7 +2339,7 @@ describe("AuthedScreen", () => {
 
   it("opens login dialog and keeps memo draft on UNAUTHORIZED", async () => {
     const user = userEvent.setup();
-    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    getNavigationMock().__mockNavigation.setQuery("view=memo&stubAuth=1");
     getPostActionsMock().createPostAction.mockResolvedValueOnce({
       ok: false,
       error: {
@@ -1942,7 +2364,7 @@ describe("AuthedScreen", () => {
 
   it("keeps note input and opens login dialog on UNAUTHORIZED", async () => {
     const user = userEvent.setup();
-    getNavigationMock().__mockNavigation.setQuery("view=note");
+    getNavigationMock().__mockNavigation.setQuery("view=note&stubAuth=1");
     getPostActionsMock().updatePostAction.mockResolvedValueOnce({
       ok: false,
       error: {
@@ -1953,7 +2375,7 @@ describe("AuthedScreen", () => {
 
     renderAuthedScreen();
 
-    const noteCard = (await screen.findByText(/今日の学び/)).closest("article");
+    const noteCard = await findTodayLearningNoteCard();
     if (!noteCard) {
       throw new Error("note card not found");
     }
@@ -1971,7 +2393,7 @@ describe("AuthedScreen", () => {
     expect(screen.getByLabelText("ノートタイトル")).toHaveValue("401でも保持されるノートタイトル");
   });
 
-  it("allows continuing memo save after login flow", async () => {
+  it("opens login dialog even when relogin draft persistence fails on UNAUTHORIZED", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=memo");
     getPostActionsMock().createPostAction.mockResolvedValueOnce({
@@ -1981,11 +2403,44 @@ describe("AuthedScreen", () => {
         message: "ログインが必要です",
       },
     });
+    const originalSetItem = Storage.prototype.setItem;
+    const setItemSpy = jest.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+      key: string,
+      value: string
+    ) {
+      if (key === "mono-log:relogin-draft:v1") {
+        throw new Error("sessionStorage unavailable");
+      }
 
-    renderAuthedScreen({
-      stubAuthEnabled: true,
-      loginUrl: "/?view=memo",
+      return originalSetItem.call(this, key, value);
     });
+
+    renderAuthedScreen({ authMode: "authjs" });
+
+    const input = await screen.findByLabelText("メモ本文");
+    await user.type(input, "401でも保持されるメモ");
+    await user.click(screen.getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("ログインが必要です");
+    });
+    expect(setItemSpy).toHaveBeenCalled();
+    expect(input).toHaveValue("401でも保持されるメモ");
+    expect(screen.getByRole("heading", { name: "ログイン" })).toBeInTheDocument();
+  });
+
+  it("allows continuing memo save after login flow", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo&stubAuth=1");
+    getPostActionsMock().createPostAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      },
+    });
+
+    renderAuthedScreen();
 
     const input = await screen.findByLabelText("メモ本文");
     await user.type(input, "ログイン後に保存するメモ");
@@ -2012,7 +2467,7 @@ describe("AuthedScreen", () => {
 
   it("allows continuing note update after login flow", async () => {
     const user = userEvent.setup();
-    getNavigationMock().__mockNavigation.setQuery("view=note");
+    getNavigationMock().__mockNavigation.setQuery("view=note&stubAuth=1");
     getPostActionsMock().updatePostAction.mockResolvedValueOnce({
       ok: false,
       error: {
@@ -2021,12 +2476,9 @@ describe("AuthedScreen", () => {
       },
     });
 
-    renderAuthedScreen({
-      stubAuthEnabled: true,
-      loginUrl: "/?view=note&noteComposer=edit%3Apost-002",
-    });
+    renderAuthedScreen();
 
-    const noteCard = (await screen.findByText(/今日の学び/)).closest("article");
+    const noteCard = await findTodayLearningNoteCard();
     if (!noteCard) {
       throw new Error("note card not found");
     }
@@ -2052,7 +2504,9 @@ describe("AuthedScreen", () => {
     await waitFor(() => {
       expect(getPostActionsMock().updatePostAction).toHaveBeenCalledTimes(2);
     });
-    expect(toast).toHaveBeenCalledWith("更新しました");
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith("更新しました");
+    });
     expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
   });
 });

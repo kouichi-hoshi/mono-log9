@@ -1,6 +1,6 @@
 export type PageSearchParams = Record<string, string | string[] | undefined>;
 
-function toUrlSearchParams(searchParams: PageSearchParams | undefined) {
+function toUrlSearchParams(searchParams: PageSearchParams | undefined): URLSearchParams {
   const params = new URLSearchParams();
 
   if (!searchParams) {
@@ -30,41 +30,21 @@ function toPathname(params: URLSearchParams): string {
   return query.length > 0 ? `/?${query}` : "/";
 }
 
-export function isStubAuthed(
-  searchParams: PageSearchParams | undefined,
-  enabled: boolean
-): boolean {
-  if (!enabled) {
-    return false;
-  }
-
-  const value = searchParams?.stubAuth;
-  if (Array.isArray(value)) {
-    return value.includes("1");
-  }
-
-  return value === "1";
+export function stripStubAuth(params: URLSearchParams): URLSearchParams {
+  const next = new URLSearchParams(params);
+  next.delete("stubAuth");
+  return next;
 }
 
-export function buildUrlWithStubAuth(
+export function buildCallbackPathFromSearchParams(
   searchParams: PageSearchParams | undefined
 ): string {
   const params = toUrlSearchParams(searchParams);
-  params.set("stubAuth", "1");
-  return toPathname(params);
+  return toPathname(stripStubAuth(params));
 }
 
-export function buildUrlWithStubAuthFromQuery(queryString: string): string {
+export function buildCallbackPathFromQueryString(queryString: string): string {
   const normalized = queryString.startsWith("?") ? queryString.slice(1) : queryString;
   const params = new URLSearchParams(normalized);
-  params.set("stubAuth", "1");
-  return toPathname(params);
-}
-
-export function buildUrlWithoutStubAuth(
-  searchParams: PageSearchParams | undefined
-): string {
-  const params = toUrlSearchParams(searchParams);
-  params.delete("stubAuth");
-  return toPathname(params);
+  return toPathname(stripStubAuth(params));
 }

@@ -21,7 +21,7 @@ import Container1 from "@/components/authed/Container1";
 import Container2 from "@/components/authed/Container2";
 import HeaderPostArea from "@/components/authed/HeaderPostArea";
 import NoteComposerModal from "@/components/authed/NoteComposerModal";
-import { stubUser, type ViewMode } from "@/components/authed/stubs";
+import type { AuthedUser, ViewMode } from "@/components/authed/stubs";
 import type { NoteDraft } from "@/components/authed/types";
 import {
   AlertDialog,
@@ -41,6 +41,16 @@ import {
   normalizeAuthedQuery,
   toRootPath,
 } from "@/lib/authedQueryState";
+import { buildCallbackPathFromQueryString } from "@/lib/auth/callbackUrl";
+import { signOutToRoot } from "@/lib/auth/client";
+import { cleanupAfterLogout } from "@/lib/auth/logoutCleanup";
+import {
+  clearReloginDraft,
+  loadReloginDraft,
+  saveReloginDraft,
+  type ReloginNoteDraft,
+} from "@/lib/auth/reloginDraft";
+import type { AuthMode } from "@/lib/auth/types";
 import { clonePostContent, createDocFromPlainText } from "@/lib/posts/content";
 import { isMemoDirty } from "@/lib/posts/hasEdits";
 import {
@@ -61,11 +71,11 @@ import {
 } from "@/lib/posts/scrollRestoration";
 import type { PostContent, PostRecord, PostView } from "@/lib/posts/types";
 import { PostsListQueryError, usePostsInfiniteQuery } from "@/lib/posts/usePostsInfiniteQuery";
+import { buildUrlWithStubAuthFromQuery } from "@/lib/stubAuth";
 
 type AuthedScreenProps = {
-  logoutUrl: string;
-  stubAuthEnabled?: boolean;
-  loginUrl?: string;
+  authMode?: AuthMode;
+  user?: AuthedUser;
 };
 
 type PendingAction =
@@ -172,15 +182,21 @@ function parsePostsListConditionFromQueryKey(key: QueryKey): PostsListCondition 
 }
 
 export default function AuthedScreen({
-  logoutUrl,
-  stubAuthEnabled = false,
-  loginUrl = "/",
+  authMode = "stub",
+  user = { name: "テストユーザー", handle: "@mono-log", imageUrl: null },
 }: AuthedScreenProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
   const queryString = searchParams.toString();
+  const loginCallbackUrl = React.useMemo(
+    () =>
+      authMode === "stub"
+        ? buildUrlWithStubAuthFromQuery(queryString)
+        : buildCallbackPathFromQueryString(queryString),
+    [authMode, queryString]
+  );
   const committedQueryRef = React.useRef(queryString);
   const [committedQueryString, setCommittedQueryString] = React.useState(queryString);
   const previousQueryRef = React.useRef(queryString);
@@ -236,7 +252,10 @@ export default function AuthedScreen({
   const [deleteDialogErrorMessage, setDeleteDialogErrorMessage] = React.useState<string | null>(null);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = React.useState(false);
   const [isLoginDialogOpen, setIsLoginDialogOpen] = React.useState(false);
+  const [isLogoutSubmitting, setIsLogoutSubmitting] = React.useState(false);
   const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
+  const [liveNoteDraft, setLiveNoteDraft] = React.useState<ReloginNoteDraft | null>(null);
+  const [restoredNoteDraft, setRestoredNoteDraft] = React.useState<ReloginNoteDraft | null>(null);
 
   const [isRestoringScroll, setIsRestoringScroll] = React.useState(false);
   const restoredScrollKeyRef = React.useRef<string | null>(null);
@@ -292,6 +311,31 @@ export default function AuthedScreen({
     closeNoteModalNow();
   }, [closeNoteModalNow]);
 
+  const persistReloginDraft = React.useCallback(() => {
+    if (authMode !== "authjs") {
+      return;
+    }
+
+    try {
+      saveReloginDraft({
+        query: queryString,
+        memoDraft,
+        editingMemoPostId,
+        editingMemoValue,
+        noteDraft: liveNoteDraft,
+      });
+    } catch {
+      // Storage failures are non-fatal; continue relogin flow.
+    }
+  }, [
+    authMode,
+    editingMemoPostId,
+    editingMemoValue,
+    liveNoteDraft,
+    memoDraft,
+    queryString,
+  ]);
+
   const syncCommittedQuery = React.useCallback((nextQuery: string) => {
     committedQueryRef.current = nextQuery;
     setCommittedQueryString(nextQuery);
@@ -340,9 +384,36 @@ export default function AuthedScreen({
     [executeAction, hasUnsavedEdits]
   );
 
+  const handleLogout = React.useCallback(async () => {
+    if (isLogoutSubmitting) {
+      return;
+    }
+
+    setIsLogoutSubmitting(true);
+
+    try {
+      if (authMode === "authjs") {
+        const redirectUrl = await signOutToRoot();
+        cleanupAfterLogout(queryClient);
+        router.push(redirectUrl);
+        return;
+      }
+
+      cleanupAfterLogout(queryClient);
+      router.push("/");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "エラーが発生しました");
+      setIsLogoutSubmitting(false);
+      return;
+    }
+
+    setIsLogoutSubmitting(false);
+  }, [authMode, isLogoutSubmitting, queryClient, router]);
+
   const handleActionError = React.useCallback((error: ActionError | { code: string; message: string }) => {
     if (error.code === "UNAUTHORIZED") {
       toast.error(error.message || "ログインが必要です");
+      persistReloginDraft();
       setIsLoginDialogOpen(true);
       return;
     }
@@ -353,7 +424,28 @@ export default function AuthedScreen({
     }
 
     toast.error(error.message);
-  }, []);
+  }, [persistReloginDraft]);
+
+  React.useEffect(() => {
+    if (authMode !== "authjs") {
+      return;
+    }
+
+    const restored = loadReloginDraft();
+    if (!restored || restored.query !== queryString) {
+      return;
+    }
+
+    setMemoDraft(restored.memoDraft);
+    if (restored.editingMemoPostId) {
+      setEditingMemoPostId(restored.editingMemoPostId);
+      setEditingMemoInitialValue(restored.editingMemoValue);
+      setEditingMemoValue(restored.editingMemoValue);
+    }
+
+    setRestoredNoteDraft(restored.noteDraft);
+    clearReloginDraft();
+  }, [authMode, queryString]);
 
   React.useEffect(() => {
     const handlePopState = () => {
@@ -706,10 +798,11 @@ export default function AuthedScreen({
       handledMissingNoteComposerRef.current = null;
       setNoteModalMode("create");
       setEditingNotePostId(null);
-      setNoteModalInitialTitle("");
-      setNoteModalInitialContent(null);
-      setNoteModalInitialPlainText("");
+      setNoteModalInitialTitle(restoredNoteDraft?.title ?? "");
+      setNoteModalInitialContent(restoredNoteDraft?.contentJson ?? null);
+      setNoteModalInitialPlainText(restoredNoteDraft?.plainText ?? "");
       setNoteModalDirty(false);
+      setRestoredNoteDraft(null);
       return;
     }
 
@@ -752,10 +845,13 @@ export default function AuthedScreen({
     handledMissingNoteComposerRef.current = null;
     setNoteModalMode("edit");
     setEditingNotePostId(targetPost.id);
-    setNoteModalInitialTitle(targetPost.title ?? "");
-    setNoteModalInitialContent(clonePostContent(targetPost.content));
-    setNoteModalInitialPlainText(targetPost.contentText);
+    setNoteModalInitialTitle(restoredNoteDraft?.title ?? targetPost.title ?? "");
+    setNoteModalInitialContent(
+      restoredNoteDraft?.contentJson ?? clonePostContent(targetPost.content)
+    );
+    setNoteModalInitialPlainText(restoredNoteDraft?.plainText ?? targetPost.contentText);
     setNoteModalDirty(false);
+    setRestoredNoteDraft(null);
   }, [
     closeNoteModalNow,
     findInCachedPostLists,
@@ -765,6 +861,7 @@ export default function AuthedScreen({
     noteModalDirty,
     noteComposer,
     queryString,
+    restoredNoteDraft,
     router,
     syncCommittedQuery,
     visibleItems,
@@ -1260,10 +1357,11 @@ export default function AuthedScreen({
         <div className="border-b-2 bg-white/80 px-4 py-4">
           <div className="mx-auto w-full max-w-6xl">
             <Container1
-              user={stubUser}
+              user={user}
               mode={mode}
               view={isTrashView ? "trash" : "list"}
-              logoutUrl={logoutUrl}
+              onLogout={handleLogout}
+              isLogoutSubmitting={isLogoutSubmitting}
               onModeChange={handleModeChange}
               onTrashClick={handleTrashClick}
             />
@@ -1330,13 +1428,15 @@ export default function AuthedScreen({
         initialPlainText={noteModalInitialPlainText}
         onSaveStub={handleNoteSaveStub}
         onDirtyChange={setNoteModalDirty}
+        onDraftChange={setLiveNoteDraft}
         onRequestClose={handleNoteModalRequestClose}
       />
       <ControlledLoginDialog
         open={isLoginDialogOpen}
         onOpenChange={setIsLoginDialogOpen}
-        stubAuthEnabled={stubAuthEnabled}
-        loginUrl={loginUrl}
+        authMode={authMode}
+        callbackUrl={loginCallbackUrl}
+        onBeforeAuthRedirect={persistReloginDraft}
       />
       <AlertDialog open={isDiscardDialogOpen} onOpenChange={handleDiscardDialogOpenChange}>
         <AlertDialogContent className="z-[70]">

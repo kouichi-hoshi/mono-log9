@@ -6,6 +6,7 @@ import EditorActionBar from "@/components/authed/EditorActionBar";
 import NoteEditor from "@/components/authed/NoteEditor";
 import type { NoteDraft } from "@/components/authed/types";
 import FullscreenModal from "@/components/ui/FullscreenModal";
+import type { ReloginNoteDraft } from "@/lib/auth/reloginDraft";
 import { isNoteDirty } from "@/lib/posts/hasEdits";
 import type { PostContent } from "@/lib/posts/types";
 
@@ -18,6 +19,7 @@ type NoteComposerModalProps = {
   initialPlainText?: string;
   onSaveStub: (draft: NoteDraft) => Promise<boolean> | boolean;
   onDirtyChange?: (dirty: boolean) => void;
+  onDraftChange?: (draft: ReloginNoteDraft | null) => void;
   onRequestClose?: () => void;
 };
 
@@ -30,6 +32,7 @@ export default function NoteComposerModal({
   initialPlainText,
   onSaveStub,
   onDirtyChange,
+  onDraftChange,
   onRequestClose,
 }: NoteComposerModalProps) {
   const [draft, setDraft] = React.useState<NoteDraft>({
@@ -60,22 +63,27 @@ export default function NoteComposerModal({
   React.useEffect(() => {
     if (!open) {
       onDirtyChange?.(false);
+      onDraftChange?.(null);
       return;
     }
 
-    setDraft({
+    const nextDraft = {
       title: initialTitle ?? "",
       contentJson: initialContentJson ?? null,
       plainText: initialPlainText ?? "",
-    });
+    };
+
+    setDraft(nextDraft);
+    onDraftChange?.(nextDraft);
     setShowValidationError(false);
-  }, [initialContentJson, initialPlainText, initialTitle, onDirtyChange, open, mode]);
+  }, [initialContentJson, initialPlainText, initialTitle, onDirtyChange, onDraftChange, open, mode]);
 
   React.useEffect(() => {
     if (!open) {
       return;
     }
 
+    onDraftChange?.(draft);
     onDirtyChange?.(
       isNoteDirty(
         {
@@ -88,7 +96,7 @@ export default function NoteComposerModal({
         }
       )
     );
-  }, [draft.contentJson, draft.title, initialContentJson, initialTitle, onDirtyChange, open]);
+  }, [draft, initialContentJson, initialTitle, onDirtyChange, onDraftChange, open]);
 
   const closeNoteModal = React.useCallback(() => {
     onOpenChange(false);

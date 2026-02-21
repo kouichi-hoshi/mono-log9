@@ -4,10 +4,13 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { signInGoogle } from "@/lib/auth/client";
+import type { AuthMode } from "@/lib/auth/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -17,26 +20,30 @@ const LOGIN_ERROR_MESSAGE =
   "ログインに失敗しました、サイト管理者にお問い合わせください";
 
 type LoginDialogProps = {
-  stubAuthEnabled: boolean;
-  loginUrl: string;
+  authMode: AuthMode;
+  callbackUrl: string;
 };
 
 export default function LoginDialog({
-  stubAuthEnabled,
-  loginUrl,
+  authMode,
+  callbackUrl,
 }: LoginDialogProps) {
   const [open, setOpen] = React.useState(false);
   const router = useRouter();
 
-  const handleGoogleLogin = () => {
-    if (stubAuthEnabled) {
-      setOpen(false);
-      router.push(loginUrl);
+  const handleGoogleLogin = async () => {
+    setOpen(false);
+
+    if (authMode === "stub") {
+      router.push(callbackUrl);
       return;
     }
 
-    toast.error(LOGIN_ERROR_MESSAGE);
-    setOpen(false);
+    try {
+      await signInGoogle(callbackUrl);
+    } catch {
+      toast.error(LOGIN_ERROR_MESSAGE);
+    }
   };
 
   return (
@@ -47,6 +54,9 @@ export default function LoginDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>ログイン</DialogTitle>
+          <DialogDescription className="sr-only">
+            Google アカウントでログインします
+          </DialogDescription>
         </DialogHeader>
         <div className="mt-6">
           <Button className="w-full" onClick={handleGoogleLogin}>

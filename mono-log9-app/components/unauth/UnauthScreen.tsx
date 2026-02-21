@@ -1,17 +1,18 @@
 import LoginDialog from "@/components/auth/LoginDialog";
+import type { AuthMode } from "@/lib/auth/types";
 import LinkCluster from "@/components/unauth/LinkCluster";
 import UnauthFooter from "@/components/unauth/UnauthFooter";
 import UnauthHeader from "@/components/unauth/UnauthHeader";
 import WelcomeContent from "@/components/unauth/WelcomeContent";
 
 type UnauthScreenProps = {
-  stubAuthEnabled: boolean;
-  loginUrl: string;
+  authMode: AuthMode;
+  callbackUrl: string;
 };
 
 export default function UnauthScreen({
-  stubAuthEnabled,
-  loginUrl,
+  authMode,
+  callbackUrl,
 }: UnauthScreenProps) {
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -21,7 +22,7 @@ export default function UnauthScreen({
           <WelcomeContent />
           <LinkCluster />
           <div className="pt-2">
-            <LoginDialog stubAuthEnabled={stubAuthEnabled} loginUrl={loginUrl} />
+            <LoginDialog authMode={authMode} callbackUrl={callbackUrl} />
           </div>
         </main>
         <UnauthFooter />

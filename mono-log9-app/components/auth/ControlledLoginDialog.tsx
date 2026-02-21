@@ -3,10 +3,13 @@
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { signInGoogle } from "@/lib/auth/client";
+import type { AuthMode } from "@/lib/auth/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -17,27 +20,39 @@ const LOGIN_ERROR_MESSAGE =
 type ControlledLoginDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  stubAuthEnabled: boolean;
-  loginUrl: string;
+  authMode: AuthMode;
+  callbackUrl: string;
+  onBeforeAuthRedirect?: () => void;
 };
 
 export default function ControlledLoginDialog({
   open,
   onOpenChange,
-  stubAuthEnabled,
-  loginUrl,
+  authMode,
+  callbackUrl,
+  onBeforeAuthRedirect,
 }: ControlledLoginDialogProps) {
   const router = useRouter();
 
-  const handleGoogleLogin = () => {
-    if (stubAuthEnabled) {
-      onOpenChange(false);
-      router.push(loginUrl);
+  const handleGoogleLogin = async () => {
+    onOpenChange(false);
+
+    if (authMode === "stub") {
+      router.push(callbackUrl);
       return;
     }
 
-    toast.error(LOGIN_ERROR_MESSAGE);
-    onOpenChange(false);
+    try {
+      onBeforeAuthRedirect?.();
+    } catch {
+      // Draft persistence failure must not block auth redirect.
+    }
+
+    try {
+      await signInGoogle(callbackUrl);
+    } catch {
+      toast.error(LOGIN_ERROR_MESSAGE);
+    }
   };
 
   return (
@@ -45,6 +60,9 @@ export default function ControlledLoginDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>ログイン</DialogTitle>
+          <DialogDescription className="sr-only">
+            Google アカウントでログインします
+          </DialogDescription>
         </DialogHeader>
         <div className="mt-6">
           <Button className="w-full" onClick={handleGoogleLogin}>
