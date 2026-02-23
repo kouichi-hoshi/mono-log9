@@ -1,11 +1,14 @@
 "use server";
 
+import { ensureActorUserFromSession } from "@/lib/auth/actorUser";
+import { getStubPostsEnabled } from "@/lib/env";
 import { isPostRepositoryError, type PostErrorCode } from "@/lib/posts/errors";
 import {
+  toValidatedListPostsInput,
   toValidatedCreatePostDto,
   toValidatedUpdatePostDto,
 } from "@/lib/posts/inputValidation";
-import { postRepository } from "@/lib/posts/postRepository";
+import { getActorPostRepository, postRepository } from "@/lib/posts/postRepository";
 import type {
   CreatePostInput,
   DeleteTrashPostsInput,
@@ -18,6 +21,7 @@ import type {
   RestoreFromTrashInput,
   SetFavoriteInput,
   UpdatePostInput,
+  PostRepository,
 } from "@/lib/posts/types";
 
 export type ActionError = {
@@ -49,9 +53,22 @@ function toErrorResult(error: unknown): ActionResult<never> {
   };
 }
 
+async function resolveRepositoryForAction(): Promise<PostRepository> {
+  if (getStubPostsEnabled()) {
+    return postRepository;
+  }
+
+  const { auth } = await import("@/auth");
+  const session = await auth();
+  const actorUserId = await ensureActorUserFromSession(session);
+  return getActorPostRepository(actorUserId);
+}
+
 export async function listPostsAction(input: ListPostsInput): Promise<ActionResult<ListPostsResult>> {
   try {
-    const data = await postRepository.listPosts(input);
+    const repository = await resolveRepositoryForAction();
+    const validated = toValidatedListPostsInput(input);
+    const data = await repository.listPosts(validated);
     return { ok: true, data };
   } catch (error) {
     return toErrorResult(error);
@@ -60,8 +77,9 @@ export async function listPostsAction(input: ListPostsInput): Promise<ActionResu
 
 export async function createPostAction(input: CreatePostInput): Promise<ActionResult<PostRecord>> {
   try {
+    const repository = await resolveRepositoryForAction();
     const validated = toValidatedCreatePostDto(input);
-    const data = await postRepository.createPost(validated);
+    const data = await repository.createPost(validated);
     return { ok: true, data };
   } catch (error) {
     return toErrorResult(error);
@@ -70,8 +88,12 @@ export async function createPostAction(input: CreatePostInput): Promise<ActionRe
 
 export async function updatePostAction(input: UpdatePostInput): Promise<ActionResult<PostRecord>> {
   try {
-    const validated = toValidatedUpdatePostDto(input);
-    const data = await postRepository.updatePost(validated);
+    const stubPostsEnabled = getStubPostsEnabled();
+    const repository = await resolveRepositoryForAction();
+    const validated = toValidatedUpdatePostDto(input, {
+      postIdMode: stubPostsEnabled ? "stub" : "db",
+    });
+    const data = await repository.updatePost(validated);
     return { ok: true, data };
   } catch (error) {
     return toErrorResult(error);
@@ -80,7 +102,8 @@ export async function updatePostAction(input: UpdatePostInput): Promise<ActionRe
 
 export async function setFavoriteAction(input: SetFavoriteInput): Promise<ActionResult<PostRecord>> {
   try {
-    const data = await postRepository.setFavorite(input);
+    const repository = await resolveRepositoryForAction();
+    const data = await repository.setFavorite(input);
     return { ok: true, data };
   } catch (error) {
     return toErrorResult(error);
@@ -89,7 +112,8 @@ export async function setFavoriteAction(input: SetFavoriteInput): Promise<Action
 
 export async function moveToTrashAction(input: MoveToTrashInput): Promise<ActionResult<null>> {
   try {
-    await postRepository.moveToTrash(input);
+    const repository = await resolveRepositoryForAction();
+    await repository.moveToTrash(input);
     return { ok: true, data: null };
   } catch (error) {
     return toErrorResult(error);
@@ -100,7 +124,8 @@ export async function restoreFromTrashAction(
   input: RestoreFromTrashInput
 ): Promise<ActionResult<null>> {
   try {
-    await postRepository.restoreFromTrash(input);
+    const repository = await resolveRepositoryForAction();
+    await repository.restoreFromTrash(input);
     return { ok: true, data: null };
   } catch (error) {
     return toErrorResult(error);
@@ -111,7 +136,8 @@ export async function deleteTrashPostsAction(
   input: DeleteTrashPostsInput
 ): Promise<ActionResult<DeleteTrashPostsResult>> {
   try {
-    const data = await postRepository.deleteTrashPosts(input);
+    const repository = await resolveRepositoryForAction();
+    const data = await repository.deleteTrashPosts(input);
     return { ok: true, data };
   } catch (error) {
     return toErrorResult(error);
@@ -120,7 +146,8 @@ export async function deleteTrashPostsAction(
 
 export async function emptyTrashAction(): Promise<ActionResult<EmptyTrashResult>> {
   try {
-    const data = await postRepository.emptyTrash();
+    const repository = await resolveRepositoryForAction();
+    const data = await repository.emptyTrash();
     return { ok: true, data };
   } catch (error) {
     return toErrorResult(error);

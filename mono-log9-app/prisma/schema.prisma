@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_DIRECT_URL")
+}
+
+enum PostMode {
+  memo
+  note
+}
+
+enum PostStatus {
+  active
+  trashed
+}
+
+model User {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  googleSub String   @unique
+  email     String?
+  name      String?
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  posts Post[]
+}
+
+model Post {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authorId    String     @db.Uuid
+  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  mode        PostMode
+  title       String?    @db.VarChar(100)
+  content     Json
+  contentText String     @db.Text
+  favorite    Boolean    @default(false)
+  status      PostStatus @default(active)
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime   @updatedAt @db.Timestamptz(3)
+  trashedAt   DateTime?  @db.Timestamptz(3)
+
+  @@index([authorId, status, mode, createdAt, id], map: "post_active_list_idx")
+  @@index([authorId, status, mode, favorite, createdAt, id], map: "post_active_fav_list_idx")
+  @@index([authorId, status, trashedAt, id], map: "post_trash_list_idx")
+}

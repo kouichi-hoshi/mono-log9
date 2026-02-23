@@ -98,7 +98,7 @@ const trash002Content = createDocFromPlainText("旧バージョンの設計メ�
 
 const initialActivePosts: PostRecord[] = [
   {
-    id: "post-001",
+    id: "11111111-1111-4111-8111-111111111001",
     mode: "memo",
     content: createDocFromPlainText("買い物メモ: 牛乳、パン、トマト"),
     contentText: "買い物メモ: 牛乳、パン、トマト",
@@ -106,7 +106,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "post-002",
+    id: "11111111-1111-4111-8111-111111111002",
     mode: "note",
     content: note001Content,
     contentText: extractContentText(note001Content, "note"),
@@ -114,7 +114,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: true,
   },
   {
-    id: "post-003",
+    id: "11111111-1111-4111-8111-111111111003",
     mode: "memo",
     content: createDocFromPlainText("打ち合わせは金曜 14:00 から"),
     contentText: "打ち合わせは金曜 14:00 から",
@@ -122,7 +122,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "post-004",
+    id: "11111111-1111-4111-8111-111111111004",
     mode: "note",
     title: "モノログのUIメモ",
     content: note002Content,
@@ -131,7 +131,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "post-005",
+    id: "11111111-1111-4111-8111-111111111005",
     mode: "memo",
     content: createDocFromPlainText("朝のメモ: 10分だけ読書する"),
     contentText: "朝のメモ: 10分だけ読書する",
@@ -139,7 +139,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "post-006",
+    id: "11111111-1111-4111-8111-111111111006",
     mode: "memo",
     content: createDocFromPlainText("メモ: 明日の昼はカレーを作る"),
     contentText: "メモ: 明日の昼はカレーを作る",
@@ -147,7 +147,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: true,
   },
   {
-    id: "post-007",
+    id: "11111111-1111-4111-8111-111111111007",
     mode: "memo",
     content: createDocFromPlainText("メモ: 15時に歯医者へ電話"),
     contentText: "メモ: 15時に歯医者へ電話",
@@ -155,7 +155,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "post-008",
+    id: "11111111-1111-4111-8111-111111111008",
     mode: "memo",
     content: createDocFromPlainText("作業メモ: PRレビューを2件返す"),
     contentText: "作業メモ: PRレビューを2件返す",
@@ -163,7 +163,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "post-009",
+    id: "11111111-1111-4111-8111-111111111009",
     mode: "memo",
     content: createDocFromPlainText("TODO: 電池と洗剤を補充する"),
     contentText: "TODO: 電池と洗剤を補充する",
@@ -171,7 +171,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "post-010",
+    id: "11111111-1111-4111-8111-111111111010",
     mode: "memo",
     content: createDocFromPlainText("メモ: ランチ後に散歩20分"),
     contentText: "メモ: ランチ後に散歩20分",
@@ -179,7 +179,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: true,
   },
   {
-    id: "post-011",
+    id: "11111111-1111-4111-8111-111111111011",
     mode: "memo",
     content: createDocFromPlainText("買い足し: コーヒーフィルター"),
     contentText: "買い足し: コーヒーフィルター",
@@ -187,7 +187,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "post-012",
+    id: "11111111-1111-4111-8111-111111111012",
     mode: "memo",
     content: createDocFromPlainText("メモ: 週末にクローゼット整理"),
     contentText: "メモ: 週末にクローゼット整理",
@@ -195,7 +195,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "post-013",
+    id: "11111111-1111-4111-8111-111111111013",
     mode: "memo",
     content: createDocFromPlainText("作業メモ: APIエラー文言を確認"),
     contentText: "作業メモ: APIエラー文言を確認",
@@ -203,7 +203,7 @@ const initialActivePosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "post-014",
+    id: "11111111-1111-4111-8111-111111111014",
     mode: "memo",
     content: createDocFromPlainText("メモ: 早寝する（23時まで）"),
     contentText: "メモ: 早寝する（23時まで）",
@@ -214,7 +214,7 @@ const initialActivePosts: PostRecord[] = [
 
 const initialTrashPosts: PostRecord[] = [
   {
-    id: "trash-001",
+    id: "22222222-2222-4222-8222-222222222001",
     mode: "memo",
     content: createDocFromPlainText("破棄候補メモ: 先週の打ち合わせメモ"),
     contentText: "破棄候補メモ: 先週の打ち合わせメモ",
@@ -223,7 +223,7 @@ const initialTrashPosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "trash-002",
+    id: "22222222-2222-4222-8222-222222222002",
     mode: "note",
     title: "古い設計メモ",
     content: trash002Content,
@@ -233,7 +233,7 @@ const initialTrashPosts: PostRecord[] = [
     favorite: false,
   },
   {
-    id: "trash-003",
+    id: "22222222-2222-4222-8222-222222222003",
     mode: "memo",
     content: createDocFromPlainText("削除予定: 一時メモ"),
     contentText: "削除予定: 一時メモ",

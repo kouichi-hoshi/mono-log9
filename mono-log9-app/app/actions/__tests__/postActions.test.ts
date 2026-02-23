@@ -8,11 +8,27 @@ import {
   setFavoriteAction,
   updatePostAction,
 } from "@/app/actions/postActions";
+import { auth } from "@/auth";
+import { ensureActorUserFromSession } from "@/lib/auth/actorUser";
 import { createDocFromPlainText, extractContentText } from "@/lib/posts/content";
 import { PostRepositoryError } from "@/lib/posts/errors";
-import { postRepository } from "@/lib/posts/postRepository";
+import { getStubPostsEnabled } from "@/lib/env";
+import { getActorPostRepository, postRepository } from "@/lib/posts/postRepository";
+
+jest.mock("@/auth", () => ({
+  auth: jest.fn(),
+}));
+
+jest.mock("@/lib/auth/actorUser", () => ({
+  ensureActorUserFromSession: jest.fn(),
+}));
+
+jest.mock("@/lib/env", () => ({
+  getStubPostsEnabled: jest.fn(() => true),
+}));
 
 jest.mock("@/lib/posts/postRepository", () => ({
+  getActorPostRepository: jest.fn(),
   postRepository: {
     listPosts: jest.fn(),
     createPost: jest.fn(),
@@ -26,14 +42,27 @@ jest.mock("@/lib/posts/postRepository", () => ({
 }));
 
 type PostRepositoryMock = jest.Mocked<typeof postRepository>;
+const POST_ID = "550e8400-e29b-41d4-a716-446655440000";
+const OTHER_POST_ID = "550e8400-e29b-41d4-a716-446655440001";
+const TRASH_POST_ID = "550e8400-e29b-41d4-a716-446655440099";
 
 function getRepositoryMock() {
   return postRepository as PostRepositoryMock;
 }
 
+function getActorRepositoryMock() {
+  return getActorPostRepository as jest.MockedFunction<typeof getActorPostRepository>;
+}
+
 describe("postActions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (getStubPostsEnabled as jest.Mock).mockReturnValue(true);
+    (auth as jest.Mock).mockResolvedValue({
+      user: { googleSub: "google-sub-1" },
+    });
+    (ensureActorUserFromSession as jest.Mock).mockResolvedValue("user-001");
+    getActorRepositoryMock().mockReturnValue(getRepositoryMock());
   });
 
   it("returns ok result for listPostsAction", async () => {
@@ -65,7 +94,7 @@ describe("postActions", () => {
       new PostRepositoryError("NOT_FOUND", "対象が見つかりません")
     );
 
-    const result = await setFavoriteAction({ postId: "post-999", favorite: true });
+    const result = await setFavoriteAction({ postId: OTHER_POST_ID, favorite: true });
 
     expect(result).toEqual({
       ok: false,
@@ -78,7 +107,7 @@ describe("postActions", () => {
 
   it("exposes all write actions", async () => {
     getRepositoryMock().createPost.mockResolvedValue({
-      id: "post-100",
+      id: POST_ID,
       mode: "memo",
       title: undefined,
       content: createDocFromPlainText("a"),
@@ -87,7 +116,7 @@ describe("postActions", () => {
       createdAt: "2026-02-16 10:00",
     });
     getRepositoryMock().updatePost.mockResolvedValue({
-      id: "post-100",
+      id: POST_ID,
       mode: "memo",
       title: undefined,
       content: createDocFromPlainText("b"),
@@ -97,7 +126,7 @@ describe("postActions", () => {
     });
     getRepositoryMock().moveToTrash.mockResolvedValue(undefined);
     getRepositoryMock().restoreFromTrash.mockResolvedValue(undefined);
-    getRepositoryMock().deleteTrashPosts.mockResolvedValue({ deletedPostIds: ["trash-001"] });
+    getRepositoryMock().deleteTrashPosts.mockResolvedValue({ deletedPostIds: [TRASH_POST_ID] });
     getRepositoryMock().emptyTrash.mockResolvedValue({ deletedCount: 3 });
 
     await expect(
@@ -110,24 +139,24 @@ describe("postActions", () => {
       contentText: "a",
     });
     await expect(
-      updatePostAction({ postId: "post-100", title: "  b  ", content: createDocFromPlainText("b") })
+      updatePostAction({ postId: POST_ID, title: "  b  ", content: createDocFromPlainText("b") })
     ).resolves.toMatchObject({ ok: true });
     expect(getRepositoryMock().updatePost).toHaveBeenCalledWith({
-      postId: "post-100",
+      postId: POST_ID,
       title: "b",
       content: createDocFromPlainText("b"),
     });
-    await expect(moveToTrashAction({ postId: "post-100" })).resolves.toEqual({
+    await expect(moveToTrashAction({ postId: POST_ID })).resolves.toEqual({
       ok: true,
       data: null,
     });
-    await expect(restoreFromTrashAction({ postId: "post-100" })).resolves.toEqual({
+    await expect(restoreFromTrashAction({ postId: POST_ID })).resolves.toEqual({
       ok: true,
       data: null,
     });
-    await expect(deleteTrashPostsAction({ postIds: ["trash-001"] })).resolves.toEqual({
+    await expect(deleteTrashPostsAction({ postIds: [TRASH_POST_ID] })).resolves.toEqual({
       ok: true,
-      data: { deletedPostIds: ["trash-001"] },
+      data: { deletedPostIds: [TRASH_POST_ID] },
     });
     await expect(emptyTrashAction()).resolves.toEqual({
       ok: true,
@@ -197,7 +226,7 @@ describe("postActions", () => {
     } as const;
 
     getRepositoryMock().createPost.mockResolvedValue({
-      id: "post-200",
+      id: OTHER_POST_ID,
       mode: "note",
       title: "タイトル",
       content,
@@ -263,7 +292,7 @@ describe("postActions", () => {
 
   it("returns VALIDATION_ERROR when update title exceeds max length", async () => {
     const result = await updatePostAction({
-      postId: "post-100",
+      postId: POST_ID,
       title: "a".repeat(101),
       content: createDocFromPlainText("更新本文"),
     });
@@ -290,5 +319,85 @@ describe("postActions", () => {
         message: "エラーが発生しました",
       },
     });
+  });
+
+  it("returns VALIDATION_ERROR when list limit exceeds max", async () => {
+    const result = await listPostsAction({
+      view: "memo",
+      favoriteOnly: false,
+      limit: 51,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "入力内容に不備があります",
+      },
+    });
+    expect(getRepositoryMock().listPosts).not.toHaveBeenCalled();
+  });
+
+  it("returns VALIDATION_ERROR for non-uuid postId in db mode", async () => {
+    (getStubPostsEnabled as jest.Mock).mockReturnValue(false);
+
+    const result = await updatePostAction({
+      postId: "post-100",
+      content: createDocFromPlainText("更新本文"),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "入力内容に不備があります",
+      },
+    });
+    expect(getRepositoryMock().updatePost).not.toHaveBeenCalled();
+  });
+
+  it("returns UNAUTHORIZED before VALIDATION_ERROR when not logged in (db mode)", async () => {
+    (getStubPostsEnabled as jest.Mock).mockReturnValue(false);
+    (auth as jest.Mock).mockResolvedValue(null);
+    (ensureActorUserFromSession as jest.Mock).mockImplementation(() => {
+      throw new PostRepositoryError("UNAUTHORIZED", "ログインが必要です");
+    });
+
+    const result = await updatePostAction({
+      postId: "invalid",
+      content: createDocFromPlainText("更新本文"),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      },
+    });
+    expect(getRepositoryMock().updatePost).not.toHaveBeenCalled();
+  });
+
+  it("returns UNAUTHORIZED when session has no googleSub in db mode", async () => {
+    (getStubPostsEnabled as jest.Mock).mockReturnValue(false);
+    (auth as jest.Mock).mockResolvedValue(null);
+    (ensureActorUserFromSession as jest.Mock).mockImplementation(() => {
+      throw new PostRepositoryError("UNAUTHORIZED", "ログインが必要です");
+    });
+
+    const result = await listPostsAction({
+      view: "memo",
+      favoriteOnly: false,
+      limit: 10,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      },
+    });
+    expect(getRepositoryMock().listPosts).not.toHaveBeenCalled();
   });
 });

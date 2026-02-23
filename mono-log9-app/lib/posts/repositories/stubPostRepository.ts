@@ -5,8 +5,11 @@ import {
   extractContentText,
   normalizePostTitle,
 } from "@/lib/posts/content";
+import { encodePostsCursor, parseCursorInput } from "@/lib/posts/cursor";
 import { PostRepositoryError } from "@/lib/posts/errors";
+import { normalizeListLimit, validatePostIdFormatByMode } from "@/lib/posts/inputValidation";
 import { cloneInitialStubPosts } from "@/lib/posts/stubSeed";
+import { randomUUID } from "node:crypto";
 import type {
   DeleteTrashPostsInput,
   DeleteTrashPostsResult,
@@ -21,8 +24,6 @@ import type {
   ValidatedCreatePostDto,
   ValidatedUpdatePostDto,
 } from "@/lib/posts/types";
-
-const DEFAULT_LIMIT = 10;
 
 let posts: PostRecord[] = cloneInitialStubPosts();
 
@@ -46,12 +47,10 @@ function formatNowDate(): string {
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
-function isValidPostId(postId: string): boolean {
-  return /^(post|trash)-\d+$/.test(postId);
-}
-
 function validatePostId(postId: string) {
-  if (!isValidPostId(postId)) {
+  try {
+    validatePostIdFormatByMode(postId, "stub");
+  } catch {
     throw new PostRepositoryError("VALIDATION_ERROR", "入力内容に不備があります");
   }
 }
@@ -78,18 +77,6 @@ function normalizeDeletePostIds(postIds: string[]): string[] {
   return Array.from(uniqueIds);
 }
 
-function normalizeLimit(limit: number | undefined): number {
-  if (typeof limit === "undefined") {
-    return DEFAULT_LIMIT;
-  }
-
-  if (!Number.isInteger(limit) || limit <= 0) {
-    throw new PostRepositoryError("VALIDATION_ERROR", "入力内容に不備があります");
-  }
-
-  return limit;
-}
-
 function sortByCreatedAtDesc(a: PostRecord, b: PostRecord): number {
   if (a.createdAt === b.createdAt) {
     return b.id.localeCompare(a.id);
@@ -107,6 +94,31 @@ function sortByTrashedAtDesc(a: PostRecord, b: PostRecord): number {
   }
 
   return bTrashedAt.localeCompare(aTrashedAt);
+}
+
+function toIsoFromDisplayDate(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/.exec(value);
+  if (!match) {
+    throw new PostRepositoryError("INVALID_CURSOR", "cursor is invalid");
+  }
+
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+  const hours = Number.parseInt(match[4], 10);
+  const minutes = Number.parseInt(match[5], 10);
+
+  return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0)).toISOString();
+}
+
+function getSortDateText(post: PostRecord, view: ListPostsInput["view"]): string {
+  if (view === "trash") {
+    if (typeof post.trashedAt !== "string") {
+      throw new PostRepositoryError("INVALID_CURSOR", "cursor is invalid");
+    }
+    return post.trashedAt;
+  }
+  return post.createdAt;
 }
 
 function filterPostsForList(input: ListPostsInput): PostRecord[] {
@@ -133,17 +145,24 @@ function filterPostsForList(input: ListPostsInput): PostRecord[] {
     .sort(sortByCreatedAtDesc);
 }
 
-function resolveCursorStartIndex(items: PostRecord[], cursor: string | undefined): number {
-  if (typeof cursor === "undefined") {
+function resolveCursorStartIndex(
+  items: PostRecord[],
+  cursor: string | undefined,
+  view: ListPostsInput["view"]
+): number {
+  const parsedCursor = parseCursorInput(cursor);
+  if (parsedCursor.kind === "none") {
     return 0;
   }
 
-  if (cursor.trim().length === 0) {
+  const index = items.findIndex((post) => post.id === parsedCursor.id);
+  if (index === -1) {
     throw new PostRepositoryError("INVALID_CURSOR", "cursor is invalid");
   }
 
-  const index = items.findIndex((post) => post.id === cursor);
-  if (index === -1) {
+  const anchor = items[index];
+  const anchorIso = toIsoFromDisplayDate(getSortDateText(anchor, view));
+  if (parsedCursor.t !== anchorIso) {
     throw new PostRepositoryError("INVALID_CURSOR", "cursor is invalid");
   }
 
@@ -159,34 +178,28 @@ function findPost(postId: string): PostRecord {
   return post;
 }
 
-function buildNextPostId(): string {
-  const max = posts.reduce((currentMax, post) => {
-    const match = /^post-(\d+)$/.exec(post.id);
-    if (!match) {
-      return currentMax;
-    }
-
-    const value = Number.parseInt(match[1], 10);
-    return Number.isNaN(value) ? currentMax : Math.max(currentMax, value);
-  }, 0);
-
-  return `post-${`${max + 1}`.padStart(3, "0")}`;
-}
-
 export const stubPostRepository: PostRepository = {
   async listPosts(input: ListPostsInput): Promise<ListPostsResult> {
     ensureDevelopmentOnly();
 
-    const limit = normalizeLimit(input.limit);
+    const limit = normalizeListLimit(input.limit);
     const filtered = filterPostsForList(input);
-    const startIndex = resolveCursorStartIndex(filtered, input.cursor);
+    const startIndex = resolveCursorStartIndex(filtered, input.cursor, input.view);
     const items = filtered.slice(startIndex, startIndex + limit).map(clonePost);
     const hasNext = startIndex + limit < filtered.length;
+    const last = items[items.length - 1];
 
     return {
       items,
       hasNext,
-      nextCursor: hasNext && items.length > 0 ? items[items.length - 1].id : null,
+      nextCursor:
+        hasNext && last
+          ? encodePostsCursor({
+              v: 1,
+              t: toIsoFromDisplayDate(getSortDateText(last, input.view)),
+              id: last.id,
+            })
+          : null,
     };
   },
 
@@ -203,7 +216,7 @@ export const stubPostRepository: PostRepository = {
     const normalizedTitle = normalizePostTitle(input.title, input.mode);
 
     const created: PostRecord = {
-      id: buildNextPostId(),
+      id: randomUUID(),
       mode: input.mode,
       title: normalizedTitle,
       content: clonePostContent(input.content),

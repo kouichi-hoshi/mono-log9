@@ -1,4 +1,5 @@
 import { getStubPostsEnabled } from "@/lib/env";
+import { createDbPostRepository } from "@/lib/posts/repositories/dbPostRepository";
 import { stubPostRepository } from "@/lib/posts/repositories/stubPostRepository";
 import { unimplementedPostRepository } from "@/lib/posts/repositories/unimplementedPostRepository";
 import type { PostRepository } from "@/lib/posts/types";
@@ -9,6 +10,14 @@ function resolvePostRepository(): PostRepository {
   }
 
   return unimplementedPostRepository;
+}
+
+export function getActorPostRepository(actorUserId: string): PostRepository {
+  if (getStubPostsEnabled()) {
+    return stubPostRepository;
+  }
+
+  return createDbPostRepository({ actorUserId });
 }
 
 export const postRepository: PostRepository = {

@@ -26,7 +26,7 @@ tags:
 # 設計方針
 
 - 現在のアプリ型（`PostRecord`）に合わせ、投稿主キーは `id` を採用する
-- 主キーIDは UUID v7 を採用する（Prisma: `@default(uuid(7))`）
+- 主キーIDは UUID を採用する（Prisma: `@default(dbgenerated("gen_random_uuid()"))`）
 - DBは不正状態を保存しないための最小制約を持つ
 - 投稿一覧は keyset pagination 前提で設計する（`createdAt/id`、`trashedAt/id`）
 - 認可境界はクエリ条件に埋め込み、後段フィルタに依存しない
@@ -46,7 +46,7 @@ enum PostStatus {
 }
 
 model User {
-  id         String   @id @default(uuid(7)) @db.Uuid
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   googleSub  String   @unique
   email      String?
   name       String?
@@ -60,7 +60,7 @@ model User {
 }
 
 model Post {
-  id          String     @id @default(uuid(7)) @db.Uuid
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   authorId    String     @db.Uuid
   author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
@@ -102,13 +102,25 @@ CHECK (
 
 ## 1. 認可コンテキスト
 
-- Repositoryの書き込み/読み取りI/Fは `actorUserId` を必須引数で受ける
+- 投稿系 Server Action は `auth()` でセッションを確認し、未ログインは `UNAUTHORIZED` を返す
+- Action 層で `googleSub` から `actorUserId` を解決してから Repository を呼び出す
+- DB実装のRepositoryの書き込み/読み取りI/Fは `actorUserId` を必須引数で受ける
 - すべての `where` に `authorId: actorUserId` を含める
 
-## 1-A. Auth.jsログイン時のUser upsert
+実装イメージ（擬似コード）:
 
-- Auth.jsのログイン成功イベントで、`account.providerAccountId`（Google `sub`）を `googleSub` として扱う
-- `googleSub` をキーに `User` を upsert する
+```ts
+const session = await auth();
+if (!session) throw new PostRepositoryError("UNAUTHORIZED", "ログインが必要です");
+const actorUserId = await ensureActorUserFromSession(session);
+const repo = createDbPostRepository({ actorUserId });
+```
+
+## 1-A. Auth.js連携時のUser upsert
+
+- `googleSub`（Google `sub`）をキーとして `User` を upsert する
+- 項番27の最小実装では、投稿系 Server Action 実行時に lazy upsert で同期してよい
+- 将来 Auth.js のログイン成功イベントで同期する場合も、同一 upsert 契約を適用する
   - create: `googleSub`, `email`, `name`, `image`
   - update: `email`, `name`, `image`（値が取得できた項目のみ反映）
 - 未取得項目は更新対象から除外し、既存値を維持する
@@ -129,6 +141,9 @@ const user = await prisma.user.upsert({
 ```
 
 ## 2. 一覧取得（`listPosts`）
+
+- `limit` は未指定時 `10`、許容範囲 `1..50` とする
+- `limit` が範囲外の場合は `VALIDATION_ERROR`
 
 通常一覧（memo/note）:
 
@@ -157,9 +172,16 @@ cursor仕様:
 - 既存I/Fの `cursor: string` は `base64url(JSON)` 形式のopaque tokenを採用する
   - payload: `{ "v": 1, "t": "<ISO8601 UTC>", "id": "<uuid>" }`
 - デコード不能/不正cursorは `INVALID_CURSOR` を返す
-- 旧スタブ由来の `id` 単体cursorは移行期間のみ受け入れる
-  - 受信が `id` 単体の場合は対象投稿を解決して `t/id` を導出し、続き位置を計算する
-  - `nextCursor` は常に新形式（`base64url(JSON)`）で返す
+- cursor は `none | v1` のみ受け入れる（legacy `id` 単体形式は受け入れない）
+- `nextCursor` は常に新形式（`base64url(JSON)`）で返す
+
+## 2-A. 入出力フォーマット（互換要件）
+
+- DB上の `Post.id` は UUID とする（`gen_random_uuid()`）
+- `postId` 入力はスタブ実装/DB実装ともに UUID 以外を許容しない（`VALIDATION_ERROR`）
+- `createdAt` / `trashedAt` はDBでは `timestamp with time zone` で保持する
+- `PostRecord` 返却値は既存UI互換のため `YYYY-MM-DD HH:mm` 形式文字列へ整形して返す
+- cursor payload の `t` は ISO 8601 UTC を使用する
 
 ## 3. 作成・更新
 
@@ -195,6 +217,7 @@ cursor仕様:
   - レコードなし: `NOT_FOUND`
   - 制約違反/型不整合: `VALIDATION_ERROR`
   - 想定外: `INTERNAL_ERROR`
+- Action層では未ログインを入力検証より優先し、`UNAUTHORIZED` を先に返す
 
 # テスト設計（結合優先）
 
@@ -207,8 +230,9 @@ cursor仕様:
 - 一覧順序
   - 通常: `createdAt DESC, id DESC`
   - ごみ箱: `trashedAt DESC, id DESC`
-- cursor互換
-  - 旧 `id` 単体cursorを受け取っても取得継続でき、返却 `nextCursor` は新形式になる
+- cursor契約
+  - legacy `id` 単体cursorは `INVALID_CURSOR`
+  - `v1` cursorで取得継続でき、返却 `nextCursor` は新形式になる
 - favorite絞り込み
   - `favoriteOnly=true` でfavorite投稿のみ返る
 - 状態遷移
@@ -227,5 +251,5 @@ cursor仕様:
 
 # 実装メモ
 
-- 項番27ではまず `schema.prisma` とDB Repositoryの最小実装まで進める
+- 項番27ではまず `schema.prisma`、migrationファイル作成、DB Repositoryの最小実装まで進める
 - migration実行は別タスクとして明示許可のもとで行う
