@@ -52,6 +52,7 @@ import {
 } from "@/lib/auth/reloginDraft";
 import type { AuthMode } from "@/lib/auth/types";
 import { clonePostContent, createDocFromPlainText } from "@/lib/posts/content";
+import { formatJstDateTime, parseDisplayJstDateTimeToEpochMs } from "@/lib/posts/dateTime";
 import { isMemoDirty } from "@/lib/posts/hasEdits";
 import {
   flattenInfiniteItems,
@@ -63,6 +64,7 @@ import {
   postsListQueryKey,
   type PostsListCondition,
 } from "@/lib/posts/queryKeys";
+import { comparePostsByCreatedAtDesc, comparePostsByTrashedAtDesc } from "@/lib/posts/sort";
 import {
   getScrollStorageKey,
   readScrollPosition,
@@ -93,25 +95,6 @@ type PendingAction =
       type: "closeMemoEdit";
     };
 
-function sortByCreatedAtDesc(a: PostRecord, b: PostRecord): number {
-  if (a.createdAt === b.createdAt) {
-    return b.id.localeCompare(a.id);
-  }
-
-  return b.createdAt.localeCompare(a.createdAt);
-}
-
-function sortByTrashedAtDesc(a: PostRecord, b: PostRecord): number {
-  const aTrashedAt = a.trashedAt ?? "";
-  const bTrashedAt = b.trashedAt ?? "";
-
-  if (aTrashedAt === bTrashedAt) {
-    return b.id.localeCompare(a.id);
-  }
-
-  return bTrashedAt.localeCompare(aTrashedAt);
-}
-
 function toErrorMessage(error: unknown): string | null {
   if (error instanceof PostsListQueryError) {
     return error.message;
@@ -135,7 +118,9 @@ function upsertForCurrentView(
       return items.filter((item) => item.id !== updated.id);
     }
 
-    return [updated, ...items.filter((item) => item.id !== updated.id)].sort(sortByTrashedAtDesc);
+    return [updated, ...items.filter((item) => item.id !== updated.id)].sort(
+      comparePostsByTrashedAtDesc
+    );
   }
 
   const isVisibleModePost = updated.mode === view && typeof updated.trashedAt === "undefined";
@@ -145,17 +130,13 @@ function upsertForCurrentView(
     return items.filter((item) => item.id !== updated.id);
   }
 
-  return [updated, ...items.filter((item) => item.id !== updated.id)].sort(sortByCreatedAtDesc);
+  return [updated, ...items.filter((item) => item.id !== updated.id)].sort(
+    comparePostsByCreatedAtDesc
+  );
 }
 
 function formatNowDate(): string {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  const hours = `${date.getHours()}`.padStart(2, "0");
-  const minutes = `${date.getMinutes()}`.padStart(2, "0");
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
+  return formatJstDateTime(new Date());
 }
 
 function parsePostsListConditionFromQueryKey(key: QueryKey): PostsListCondition | null {
@@ -1259,10 +1240,14 @@ export default function AuthedScreen({
       }
 
       const targetPost = visibleItems.find((post) => post.id === postId) ?? findInCachedPostLists(postId);
+      const trashedAt = targetPost?.trashedAt ?? formatNowDate();
+      const trashedAtEpochMs =
+        parseDisplayJstDateTimeToEpochMs(trashedAt) ?? parseDisplayJstDateTimeToEpochMs(formatNowDate());
       const movedPost: PostRecord | null = targetPost
         ? {
             ...targetPost,
-            trashedAt: targetPost.trashedAt ?? formatNowDate(),
+            trashedAt,
+            trashedAtEpochMs: trashedAtEpochMs ?? Date.now(),
           }
         : null;
 
@@ -1272,7 +1257,9 @@ export default function AuthedScreen({
             return items;
           }
 
-          return [movedPost, ...items.filter((post) => post.id !== postId)].sort(sortByTrashedAtDesc);
+          return [movedPost, ...items.filter((post) => post.id !== postId)].sort(
+            comparePostsByTrashedAtDesc
+          );
         }
 
         return items.filter((post) => post.id !== postId);
@@ -1302,6 +1289,7 @@ export default function AuthedScreen({
         ? {
             ...trashPost,
             trashedAt: undefined,
+            trashedAtEpochMs: undefined,
           }
         : null;
 
@@ -1319,7 +1307,9 @@ export default function AuthedScreen({
           return items.filter((post) => post.id !== postId);
         }
 
-        return [restoredPost, ...items.filter((post) => post.id !== postId)].sort(sortByCreatedAtDesc);
+        return [restoredPost, ...items.filter((post) => post.id !== postId)].sort(
+          comparePostsByCreatedAtDesc
+        );
       });
       setSelectedTrashPostIds((current) => {
         const next = new Set(current);

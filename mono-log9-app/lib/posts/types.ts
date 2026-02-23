@@ -12,7 +12,9 @@ export type PostRecord = {
   contentText: string;
   favorite: boolean;
   createdAt: string;
+  createdAtEpochMs?: number;
   trashedAt?: string;
+  trashedAtEpochMs?: number;
 };
 
 export type ListPostsInput = {

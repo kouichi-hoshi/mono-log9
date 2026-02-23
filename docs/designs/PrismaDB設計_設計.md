@@ -180,7 +180,7 @@ cursor仕様:
 - DB上の `Post.id` は UUID とする（`gen_random_uuid()`）
 - `postId` 入力はスタブ実装/DB実装ともに UUID 以外を許容しない（`VALIDATION_ERROR`）
 - `createdAt` / `trashedAt` はDBでは `timestamp with time zone` で保持する
-- `PostRecord` 返却値は既存UI互換のため `YYYY-MM-DD HH:mm` 形式文字列へ整形して返す
+- `PostRecord` 返却値は既存UI互換のため `YYYY-MM-DD HH:mm` 形式文字列（JST）へ整形して返す
 - cursor payload の `t` は ISO 8601 UTC を使用する
 
 ## 3. 作成・更新

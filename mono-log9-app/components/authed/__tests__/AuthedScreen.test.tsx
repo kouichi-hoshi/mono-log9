@@ -5,6 +5,7 @@ import type { ComponentProps } from "react";
 
 import AuthedScreen from "@/components/authed/AuthedScreen";
 import { createDocFromPlainText, extractContentText } from "@/lib/posts/content";
+import { comparePostsByCreatedAtDesc, comparePostsByTrashedAtDesc } from "@/lib/posts/sort";
 import type { ListPostsInput, PostRecord } from "@/lib/posts/types";
 import { toast } from "sonner";
 
@@ -585,29 +586,11 @@ function clonePosts(posts: PostRecord[]): PostRecord[] {
   }));
 }
 
-function sortByCreatedAtDesc(a: PostRecord, b: PostRecord): number {
-  if (a.createdAt === b.createdAt) {
-    return b.id.localeCompare(a.id);
-  }
-
-  return b.createdAt.localeCompare(a.createdAt);
-}
-
-function sortByTrashedAtDesc(a: PostRecord, b: PostRecord): number {
-  const aTrashedAt = a.trashedAt ?? "";
-  const bTrashedAt = b.trashedAt ?? "";
-  if (aTrashedAt === bTrashedAt) {
-    return b.id.localeCompare(a.id);
-  }
-
-  return bTrashedAt.localeCompare(aTrashedAt);
-}
-
 function getScopedPosts(input: ListPostsInput, source: PostRecord[]): PostRecord[] {
   return input.view === "trash"
     ? source
         .filter((post) => typeof post.trashedAt !== "undefined")
-        .sort(sortByTrashedAtDesc)
+        .sort(comparePostsByTrashedAtDesc)
     : source
         .filter((post) => {
           if (typeof post.trashedAt !== "undefined") {
@@ -624,7 +607,7 @@ function getScopedPosts(input: ListPostsInput, source: PostRecord[]): PostRecord
 
           return true;
         })
-        .sort(sortByCreatedAtDesc);
+        .sort(comparePostsByCreatedAtDesc);
 }
 
 function resolveCursorStartIndex(items: PostRecord[], cursor: string | undefined): number {
@@ -638,6 +621,12 @@ function resolveCursorStartIndex(items: PostRecord[], cursor: string | undefined
   }
 
   return index + 1;
+}
+
+function getRenderedPostIds(container: HTMLElement): string[] {
+  return Array.from(container.querySelectorAll<HTMLElement>('article[data-testid^="post-card-"]'))
+    .map((node) => node.dataset.testid?.replace(/^post-card-/, ""))
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
 }
 
 describe("AuthedScreen", () => {
@@ -1610,6 +1599,57 @@ describe("AuthedScreen", () => {
     expect(screen.getByText("新規メモ")).toBeInTheDocument();
     expect(screen.getByText("打ち合わせは金曜 14:00 から")).toBeInTheDocument();
     expect(toast).toHaveBeenCalledWith("保存しました");
+  });
+
+  it("keeps memo order consistent between immediate insert and refetch", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    getPostActionsMock().createPostAction.mockImplementationOnce(
+      async ({
+        mode,
+        title,
+        content,
+      }: {
+        mode: "memo" | "note";
+        title?: string;
+        content: PostRecord["content"];
+      }) => {
+        const created: PostRecord = {
+          id: "post-000",
+          mode,
+          title: mode === "note" ? title?.trim() || undefined : undefined,
+          content,
+          contentText: extractContentText(content, mode),
+          favorite: false,
+          createdAt: "2026-02-08 09:12",
+          createdAtEpochMs: Date.UTC(2026, 1, 8, 0, 12, 30),
+        };
+        mutablePosts = [created, ...mutablePosts];
+        return { ok: true, data: created };
+      }
+    );
+
+    const { container } = renderAuthedScreen();
+
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+    await user.type(screen.getByLabelText("メモ本文"), "同分ソート検証メモ");
+    await user.click(screen.getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => {
+      expect(getPostActionsMock().createPostAction).toHaveBeenCalledTimes(1);
+    });
+    await screen.findByText("同分ソート検証メモ");
+
+    const immediateOrder = getRenderedPostIds(container);
+    expect(immediateOrder[0]).toBe("post-000");
+
+    await user.click(screen.getByRole("button", { name: "ノート" }));
+    await user.click(screen.getByRole("button", { name: "メモ" }));
+
+    await screen.findByText("同分ソート検証メモ");
+    const refetchedOrder = getRenderedPostIds(container);
+
+    expect(refetchedOrder).toEqual(immediateOrder);
   });
 
   it("keeps memo draft and shows error when createPostAction fails", async () => {

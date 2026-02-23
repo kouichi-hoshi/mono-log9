@@ -6,8 +6,10 @@ import {
   normalizePostTitle,
 } from "@/lib/posts/content";
 import { encodePostsCursor, parseCursorInput } from "@/lib/posts/cursor";
+import { formatJstDateTime, parseDisplayJstDateTime } from "@/lib/posts/dateTime";
 import { PostRepositoryError } from "@/lib/posts/errors";
 import { normalizeListLimit, validatePostIdFormatByMode } from "@/lib/posts/inputValidation";
+import { comparePostsByCreatedAtDesc, comparePostsByTrashedAtDesc } from "@/lib/posts/sort";
 import { cloneInitialStubPosts } from "@/lib/posts/stubSeed";
 import { randomUUID } from "node:crypto";
 import type {
@@ -25,7 +27,7 @@ import type {
   ValidatedUpdatePostDto,
 } from "@/lib/posts/types";
 
-let posts: PostRecord[] = cloneInitialStubPosts();
+let posts: PostRecord[] = cloneInitialStubPosts().map(withSortKeys);
 
 function ensureDevelopmentOnly() {
   if (process.env.NODE_ENV !== "development") {
@@ -33,18 +35,24 @@ function ensureDevelopmentOnly() {
   }
 }
 
+function withSortKeys(post: PostRecord): PostRecord {
+  const created = parseDisplayJstDateTime(post.createdAt);
+  const trashed =
+    typeof post.trashedAt === "string" ? parseDisplayJstDateTime(post.trashedAt) : null;
+
+  return {
+    ...post,
+    createdAtEpochMs: created?.getTime(),
+    trashedAtEpochMs: trashed?.getTime(),
+  };
+}
+
 function clonePost(post: PostRecord): PostRecord {
-  return { ...post, content: clonePostContent(post.content) };
+  return withSortKeys({ ...post, content: clonePostContent(post.content) });
 }
 
 function formatNowDate(): string {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  const hours = `${date.getHours()}`.padStart(2, "0");
-  const minutes = `${date.getMinutes()}`.padStart(2, "0");
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
+  return formatJstDateTime(new Date());
 }
 
 function validatePostId(postId: string) {
@@ -77,38 +85,12 @@ function normalizeDeletePostIds(postIds: string[]): string[] {
   return Array.from(uniqueIds);
 }
 
-function sortByCreatedAtDesc(a: PostRecord, b: PostRecord): number {
-  if (a.createdAt === b.createdAt) {
-    return b.id.localeCompare(a.id);
-  }
-
-  return b.createdAt.localeCompare(a.createdAt);
-}
-
-function sortByTrashedAtDesc(a: PostRecord, b: PostRecord): number {
-  const aTrashedAt = a.trashedAt ?? "";
-  const bTrashedAt = b.trashedAt ?? "";
-
-  if (aTrashedAt === bTrashedAt) {
-    return b.id.localeCompare(a.id);
-  }
-
-  return bTrashedAt.localeCompare(aTrashedAt);
-}
-
 function toIsoFromDisplayDate(value: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/.exec(value);
-  if (!match) {
+  const parsed = parseDisplayJstDateTime(value);
+  if (!parsed) {
     throw new PostRepositoryError("INVALID_CURSOR", "cursor is invalid");
   }
-
-  const year = Number.parseInt(match[1], 10);
-  const month = Number.parseInt(match[2], 10);
-  const day = Number.parseInt(match[3], 10);
-  const hours = Number.parseInt(match[4], 10);
-  const minutes = Number.parseInt(match[5], 10);
-
-  return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0)).toISOString();
+  return parsed.toISOString();
 }
 
 function getSortDateText(post: PostRecord, view: ListPostsInput["view"]): string {
@@ -123,7 +105,9 @@ function getSortDateText(post: PostRecord, view: ListPostsInput["view"]): string
 
 function filterPostsForList(input: ListPostsInput): PostRecord[] {
   if (input.view === "trash") {
-    return posts.filter((post) => typeof post.trashedAt !== "undefined").sort(sortByTrashedAtDesc);
+    return posts
+      .filter((post) => typeof post.trashedAt !== "undefined")
+      .sort(comparePostsByTrashedAtDesc);
   }
 
   return posts
@@ -142,7 +126,7 @@ function filterPostsForList(input: ListPostsInput): PostRecord[] {
 
       return true;
     })
-    .sort(sortByCreatedAtDesc);
+    .sort(comparePostsByCreatedAtDesc);
 }
 
 function resolveCursorStartIndex(
@@ -225,7 +209,7 @@ export const stubPostRepository: PostRepository = {
       createdAt: formatNowDate(),
     };
 
-    posts = [created, ...posts];
+    posts = [withSortKeys(created), ...posts];
     return clonePost(created);
   },
 
@@ -280,6 +264,7 @@ export const stubPostRepository: PostRepository = {
     }
 
     target.trashedAt = formatNowDate();
+    target.trashedAtEpochMs = parseDisplayJstDateTime(target.trashedAt)?.getTime();
   },
 
   async restoreFromTrash(input: RestoreFromTrashInput): Promise<void> {
@@ -293,6 +278,7 @@ export const stubPostRepository: PostRepository = {
     }
 
     target.trashedAt = undefined;
+    target.trashedAtEpochMs = undefined;
   },
 
   async deleteTrashPosts(input: DeleteTrashPostsInput): Promise<DeleteTrashPostsResult> {
@@ -332,5 +318,5 @@ export const stubPostRepository: PostRepository = {
 };
 
 export function __resetStubPostRepositoryForTests() {
-  posts = cloneInitialStubPosts();
+  posts = cloneInitialStubPosts().map(withSortKeys);
 }

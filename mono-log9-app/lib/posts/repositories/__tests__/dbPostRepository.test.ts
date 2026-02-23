@@ -121,6 +121,8 @@ describe("dbPostRepository", () => {
     expect(result.items).toHaveLength(2);
     expect(result.hasNext).toBe(true);
     expect(result.nextCursor).toBeTruthy();
+    expect(result.items[0]).toHaveProperty("createdAtEpochMs");
+    expect(result.items[1]).toHaveProperty("createdAtEpochMs");
     const decoded = JSON.parse(
       Buffer.from(result.nextCursor as string, "base64url").toString("utf8")
     ) as { v: number; t: string; id: string };
@@ -130,6 +132,34 @@ describe("dbPostRepository", () => {
       id: "550e8400-e29b-41d4-a716-446655440002",
     });
     expect(findFirst).not.toHaveBeenCalled();
+  });
+
+  it("includes trashedAtEpochMs in trash list results", async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      makeRow("550e8400-e29b-41d4-a716-446655440001", "2026-02-20T10:00:00.000Z", {
+        status: "trashed",
+        trashedAt: new Date("2026-02-23T10:00:00.000Z"),
+      }),
+      makeRow("550e8400-e29b-41d4-a716-446655440002", "2026-02-20T09:00:00.000Z", {
+        status: "trashed",
+        trashedAt: new Date("2026-02-23T09:00:00.000Z"),
+      }),
+    ]);
+    const findFirst = jest.fn();
+    (getPrismaClient as jest.Mock).mockResolvedValue({
+      post: { findFirst, findMany },
+    });
+    const repository = createDbPostRepository({ actorUserId });
+
+    const result = await repository.listPosts({
+      view: "trash",
+      favoriteOnly: false,
+      limit: 10,
+    });
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0]).toHaveProperty("trashedAtEpochMs");
+    expect(result.items[1]).toHaveProperty("trashedAtEpochMs");
   });
 
   it("continues paging with v1 cursor in db list", async () => {

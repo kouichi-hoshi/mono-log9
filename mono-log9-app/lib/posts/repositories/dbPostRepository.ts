@@ -1,6 +1,6 @@
 import { getPrismaClient } from "@/lib/db/prisma";
 import { encodePostsCursor, parseCursorInput } from "@/lib/posts/cursor";
-import { formatUtcDateTime } from "@/lib/posts/dateTime";
+import { formatJstDateTime } from "@/lib/posts/dateTime";
 import { PostRepositoryError } from "@/lib/posts/errors";
 import {
   normalizeListLimit,
@@ -119,8 +119,10 @@ function toPostRecord(row: DbPostRow): PostRecord {
     content: row.content as PostRecord["content"],
     contentText: row.contentText,
     favorite: row.favorite,
-    createdAt: formatUtcDateTime(row.createdAt),
-    trashedAt: row.trashedAt ? formatUtcDateTime(row.trashedAt) : undefined,
+    createdAt: formatJstDateTime(row.createdAt),
+    createdAtEpochMs: row.createdAt.getTime(),
+    trashedAt: row.trashedAt ? formatJstDateTime(row.trashedAt) : undefined,
+    trashedAtEpochMs: row.trashedAt ? row.trashedAt.getTime() : undefined,
   };
 }
 

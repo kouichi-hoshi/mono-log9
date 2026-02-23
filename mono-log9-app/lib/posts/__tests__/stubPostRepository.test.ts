@@ -43,9 +43,11 @@ describe("stubPostRepository", () => {
     expect(first.items).toHaveLength(10);
     expect(first.hasNext).toBe(true);
     expect(first.nextCursor).toBeTruthy();
+    expect(first.items[0]).toHaveProperty("createdAtEpochMs");
+    expect(typeof (first.items[0] as { createdAtEpochMs?: unknown }).createdAtEpochMs).toBe("number");
     expect(decodePostsCursor(first.nextCursor as string)).toEqual({
       v: 1,
-      t: "2026-02-02T19:27:00.000Z",
+      t: "2026-02-02T10:27:00.000Z",
       id: memo012,
     });
 
@@ -61,6 +63,18 @@ describe("stubPostRepository", () => {
     expect(second.nextCursor).toBeNull();
     expect(second.items[0].id).toBe(memo013);
     expect(second.items[1].id).toBe(memo014);
+  });
+
+  it("returns trashedAtEpochMs in trash list", async () => {
+    const trash = await stubPostRepository.listPosts({
+      view: "trash",
+      favoriteOnly: false,
+      limit: 10,
+    });
+
+    expect(trash.items).toHaveLength(3);
+    expect(trash.items[0]).toHaveProperty("trashedAtEpochMs");
+    expect(typeof (trash.items[0] as { trashedAtEpochMs?: unknown }).trashedAtEpochMs).toBe("number");
   });
 
   it("ignores favoriteOnly in trash view", async () => {
@@ -108,7 +122,7 @@ describe("stubPostRepository", () => {
 
     const memoCursor = encodePostsCursor({
       v: 1,
-      t: "2026-02-08T09:12:00.000Z",
+      t: "2026-02-08T00:12:00.000Z",
       id: memo001,
     });
     await expect(
@@ -156,6 +170,8 @@ describe("stubPostRepository", () => {
     expect(first.id).not.toBe(second.id);
     expect(first.contentText).toBe("新規メモ");
     expect(second.contentText).toBe("新規メモ");
+    expect(first).toHaveProperty("createdAtEpochMs");
+    expect(typeof (first as { createdAtEpochMs?: unknown }).createdAtEpochMs).toBe("number");
   });
 
   it("enforces validation and NOT_FOUND on write operations", async () => {
@@ -225,6 +241,10 @@ describe("stubPostRepository", () => {
 
     const movedItem = moved.items.find((post) => post.id === memo001);
     expect(movedItem?.trashedAt).toBeDefined();
+    expect(movedItem).toHaveProperty("trashedAtEpochMs");
+    expect(typeof (movedItem as { trashedAtEpochMs?: unknown } | undefined)?.trashedAtEpochMs).toBe(
+      "number"
+    );
 
     await stubPostRepository.moveToTrash({ postId: memo001 });
     const movedAgain = await stubPostRepository.listPosts({
