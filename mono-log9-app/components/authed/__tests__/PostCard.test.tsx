@@ -184,4 +184,26 @@ describe("PostCard", () => {
     expect(content).toHaveTextContent("見出し");
     expect(within(content).queryByRole("heading", { level: 2, name: "見出し" })).not.toBeInTheDocument();
   });
+
+  it("shows created date for memo posts", () => {
+    const post: PostRecord = {
+      id: "memo-001",
+      mode: "memo",
+      content: createDocFromPlainText("メモ本文"),
+      contentText: "メモ本文",
+      createdAt: "2026-02-15 12:00",
+      favorite: false,
+    };
+
+    render(
+      <PostCard
+        post={post}
+        onToggleFavorite={jest.fn()}
+        onEdit={jest.fn()}
+        onMoveToTrash={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText("2026-02-15 12:00")).toBeInTheDocument();
+  });
 });

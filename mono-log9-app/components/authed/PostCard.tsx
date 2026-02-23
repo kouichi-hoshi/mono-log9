@@ -79,7 +79,7 @@ export default function PostCard({
 
   return (
     <article data-testid={`post-card-${post.id}`} className="rounded-lg border border-foreground/10 p-4 shadow-sm">
-      {isNote && <div className="mb-3 text-xs text-foreground/60">{post.createdAt}</div>}
+      <div className="mb-3 text-xs text-foreground/60">{post.createdAt}</div>
       <div
         data-testid="post-content"
         className={cn(
