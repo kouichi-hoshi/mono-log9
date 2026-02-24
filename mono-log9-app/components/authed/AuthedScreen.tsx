@@ -74,6 +74,7 @@ import {
 import type { PostContent, PostRecord, PostView } from "@/lib/posts/types";
 import { PostsListQueryError, usePostsInfiniteQuery } from "@/lib/posts/usePostsInfiniteQuery";
 import { buildUrlWithStubAuthFromQuery } from "@/lib/stubAuth";
+import { APP_NAME } from "@/lib/appMeta";
 
 type AuthedScreenProps = {
   authMode?: AuthMode;
@@ -1343,7 +1344,7 @@ export default function AuthedScreen({
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0">
-        <h1 className="sr-only">Mono Log</h1>
+        <h1 className="sr-only">{APP_NAME}</h1>
         <div className="border-b-2 bg-white/80 px-4 py-4">
           <div className="mx-auto w-full max-w-6xl">
             <Container1
@@ -1468,7 +1469,7 @@ export default function AuthedScreen({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <footer className="hidden">© Mono Log</footer>
+      <footer className="hidden">© {APP_NAME}</footer>
     </div>
   );
 }

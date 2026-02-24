@@ -105,7 +105,7 @@ describe("PostCard", () => {
     expect(content.querySelector("script")).toBeNull();
   });
 
-  it("prioritizes note title display when title exists", () => {
+  it("renders note title and body when title exists", () => {
     const post: PostRecord = {
       id: "note-002",
       mode: "note",
@@ -126,7 +126,7 @@ describe("PostCard", () => {
     );
 
     expect(screen.getByText("ノートタイトル")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: "本文見出し" })).not.toBeInTheDocument();
+    expect(screen.getByText("本文見出し")).toBeInTheDocument();
   });
 
   it("falls back to plain text rendering for non-html note content", () => {
@@ -205,5 +205,77 @@ describe("PostCard", () => {
     );
 
     expect(screen.getByText("2026-02-15 12:00")).toBeInTheDocument();
+  });
+
+  it("linkifies memo urls in body text", () => {
+    const post: PostRecord = {
+      id: "memo-002",
+      mode: "memo",
+      content: createDocFromPlainText("URL: https://example.com/path"),
+      contentText: "URL: https://example.com/path",
+      createdAt: "2026-02-15 12:00",
+      favorite: false,
+    };
+
+    render(
+      <PostCard
+        post={post}
+        onToggleFavorite={jest.fn()}
+        onEdit={jest.fn()}
+        onMoveToTrash={jest.fn()}
+      />
+    );
+
+    const link = screen.getByRole("link", { name: "https://example.com/path" });
+    expect(link).toHaveAttribute("href", "https://example.com/path");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("does not linkify non-http protocols in memo text", () => {
+    const post: PostRecord = {
+      id: "memo-003",
+      mode: "memo",
+      content: createDocFromPlainText("bad javascript:alert(1)"),
+      contentText: "bad javascript:alert(1)",
+      createdAt: "2026-02-15 12:00",
+      favorite: false,
+    };
+
+    render(
+      <PostCard
+        post={post}
+        onToggleFavorite={jest.fn()}
+        onEdit={jest.fn()}
+        onMoveToTrash={jest.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.getByText("bad javascript:alert(1)")).toBeInTheDocument();
+  });
+
+  it("excludes trailing punctuation from memo url links", () => {
+    const post: PostRecord = {
+      id: "memo-004",
+      mode: "memo",
+      content: createDocFromPlainText("参照: https://example.com/path。"),
+      contentText: "参照: https://example.com/path。",
+      createdAt: "2026-02-15 12:00",
+      favorite: false,
+    };
+
+    render(
+      <PostCard
+        post={post}
+        onToggleFavorite={jest.fn()}
+        onEdit={jest.fn()}
+        onMoveToTrash={jest.fn()}
+      />
+    );
+
+    const link = screen.getByRole("link", { name: "https://example.com/path" });
+    expect(link).toHaveAttribute("href", "https://example.com/path");
+    expect(screen.getByTestId("post-content")).toHaveTextContent("参照: https://example.com/path。");
   });
 });

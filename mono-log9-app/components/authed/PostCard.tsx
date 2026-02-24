@@ -22,6 +22,81 @@ type PostCardProps = {
   onSaveMemoEditStub?: (value: string) => Promise<boolean> | boolean;
 };
 
+const MEMO_URL_REGEX = /https?:\/\/[^\s]+/g;
+const TRAILING_PUNCTUATION_REGEX = /[。、.,!?)}\]]+$/;
+
+function splitMemoUrlToken(token: string): { core: string; trailing: string } {
+  const trimmed = token.trim();
+  const match = trimmed.match(TRAILING_PUNCTUATION_REGEX);
+  if (!match) {
+    return { core: trimmed, trailing: "" };
+  }
+
+  const trailing = match[0];
+  return {
+    core: trimmed.slice(0, trimmed.length - trailing.length),
+    trailing,
+  };
+}
+
+function toSafeMemoHref(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl.trim());
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function renderMemoContent(contentText: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let keyIndex = 0;
+
+  for (const match of contentText.matchAll(MEMO_URL_REGEX)) {
+    const url = match[0];
+    const start = match.index ?? 0;
+    const end = start + url.length;
+
+    if (start > lastIndex) {
+      nodes.push(contentText.slice(lastIndex, start));
+    }
+
+    const { core, trailing } = splitMemoUrlToken(url);
+    const href = toSafeMemoHref(core);
+    if (href) {
+      nodes.push(
+        <a
+          key={`memo-link-${keyIndex}`}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 underline underline-offset-2 hover:text-blue-700"
+        >
+          {core}
+        </a>
+      );
+      keyIndex += 1;
+      if (trailing.length > 0) {
+        nodes.push(trailing);
+      }
+    } else {
+      nodes.push(url);
+    }
+
+    lastIndex = end;
+  }
+
+  if (lastIndex < contentText.length) {
+    nodes.push(contentText.slice(lastIndex));
+  }
+
+  return nodes.length > 0 ? nodes : [contentText];
+}
+
 export default function PostCard({
   post,
   onToggleFavorite,
@@ -34,13 +109,11 @@ export default function PostCard({
   onSaveMemoEditStub,
 }: PostCardProps) {
   const [hasHydrated, setHasHydrated] = React.useState(false);
-  const [expanded, setExpanded] = React.useState(false);
   const isNote = post.mode === "note";
-  const noteHasTitle = isNote && Boolean(post.title?.trim());
-  const displayContent = noteHasTitle ? post.title ?? "" : post.contentText;
+  const noteTitle = post.title?.trim() ?? "";
   const sanitizedNoteHtml = React.useMemo(
     () => {
-      if (!hasHydrated || !isNote || noteHasTitle) {
+      if (!hasHydrated || !isNote) {
         return null;
       }
 
@@ -52,7 +125,7 @@ export default function PostCard({
       const sanitized = sanitizeRichHtml(html);
       return sanitized.length > 0 ? sanitized : null;
     },
-    [hasHydrated, isNote, noteHasTitle, post.content]
+    [hasHydrated, isNote, post.content]
   );
 
   React.useEffect(() => {
@@ -80,40 +153,26 @@ export default function PostCard({
   return (
     <article data-testid={`post-card-${post.id}`} className="rounded-lg border border-foreground/10 p-4 shadow-sm">
       <div className="mb-3 text-xs text-foreground/60">{post.createdAt}</div>
-      <div
-        data-testid="post-content"
-        className={cn(
-          "text-sm leading-relaxed",
-          !isNote && "whitespace-pre-wrap",
-          isNote && !expanded && !noteHasTitle && "max-h-48 overflow-hidden"
-        )}
-      >
-        {isNote && !noteHasTitle ? (
-          sanitizedNoteHtml ? (
-            <div
-              className="md-content"
-              suppressHydrationWarning
-              dangerouslySetInnerHTML={{ __html: sanitizedNoteHtml }}
-            />
-          ) : hasHydrated ? (
-            <div className="whitespace-pre-wrap">{post.contentText}</div>
-          ) : (
-            <div suppressHydrationWarning />
-          )
+      <div data-testid="post-content" className={cn("text-sm leading-relaxed")}>
+        {isNote ? (
+          <>
+            {noteTitle.length > 0 && <p className="mb-2 text-base font-semibold">{noteTitle}</p>}
+            {sanitizedNoteHtml ? (
+              <div
+                className="md-content"
+                suppressHydrationWarning
+                dangerouslySetInnerHTML={{ __html: sanitizedNoteHtml }}
+              />
+            ) : hasHydrated ? (
+              <div className="whitespace-pre-wrap">{post.contentText}</div>
+            ) : (
+              <div suppressHydrationWarning />
+            )}
+          </>
         ) : (
-          displayContent
+          <div className="whitespace-pre-wrap break-words">{renderMemoContent(post.contentText)}</div>
         )}
       </div>
-
-      {isNote && !noteHasTitle && (
-        <button
-          type="button"
-          onClick={() => setExpanded((current) => !current)}
-          className="mt-2 text-xs text-foreground/70 hover:text-foreground"
-        >
-          {expanded ? "折りたたむ" : "もっと見る"}
-        </button>
-      )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={handleFavorite}>
