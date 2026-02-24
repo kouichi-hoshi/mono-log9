@@ -4,7 +4,7 @@ created: 2026-02-19
 source:
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/manage/作業計画書.md
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/要件定義書.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 機能.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 投稿一覧.md
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 URLクエリ状態管理.md
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 スタブ投稿データ（USE_STUB_POSTS）.md
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 投稿一覧取得-キャッシュ-ページング.md
