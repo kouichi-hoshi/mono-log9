@@ -205,8 +205,9 @@ cursor仕様:
 ## 5. 完全削除
 
 - `deleteTrashPosts(postIds)`
-  - `where: { id: { in: postIds }, authorId, status: trashed }`
-  - 対象のみ物理削除し、削除できたIDを返す
+  - all-or-nothing で実行する
+  - `where: { id: { in: postIds }, authorId, status: trashed }` で存在確認し、件数不一致なら `NOT_FOUND`
+  - 件数一致時のみ対象IDを物理削除し、削除できたIDを返す
 - `emptyTrash()`
   - `where: { authorId, status: trashed }` を全件削除
 

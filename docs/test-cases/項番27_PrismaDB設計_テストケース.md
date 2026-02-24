@@ -46,7 +46,7 @@ source:
 | TC-014 | 結合 | 一覧順（通常） | userAにmemo/note投稿を複数投入 | `view=memo` で一覧取得 | `createdAt DESC, id DESC` 順 |  |  |  |
 | TC-015 | 結合 | 一覧順（ごみ箱） | userAにtrashed投稿を複数投入 | `view=trash` で一覧取得 | `trashedAt DESC, id DESC` 順 |  |  |  |
 | TC-016 | 結合 | `favoriteOnly` フィルタ | favorite true/false投稿を準備 | `favoriteOnly=true/false` で取得 | true時はfavoriteのみ、false時は全件 |  |  |  |
-| TC-017 | 結合 | 旧cursor互換受理 | 旧 `id` cursorを作れる状態 | 旧cursorで次ページ取得 | 取得継続でき、`nextCursor` は新形式で返る |  |  |  |
+| TC-017 | 結合 | legacy cursor 拒否 | 一覧が2ページ以上ある | `cursor=post-001` で次ページ取得 | `INVALID_CURSOR` を返す |  |  |  |
 | TC-018 | 結合 | 新cursor継続 | 新形式cursorで2ページ以上ある | 1ページ目→`nextCursor` で2ページ目取得 | 重複/欠落なく取得できる |  |  |  |
 | TC-019 | 結合 | 他ユーザー投稿の秘匿 | userA/userBの投稿を作成 | userBでuserA投稿を更新/削除/復元 | すべて `NOT_FOUND` |  |  |  |
 | TC-020 | 結合 | `moveToTrash` 冪等 | active投稿あり | 連続2回 `moveToTrash` | 2回目はno-op、失敗しない |  |  |  |
