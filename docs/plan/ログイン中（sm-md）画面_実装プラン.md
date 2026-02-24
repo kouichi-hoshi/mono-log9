@@ -4,7 +4,7 @@ created: 2026-02-08
 source:
   - Miro: ログイン中（sm）, ログイン中(md)
   - docs/manage/作業計画書.md
-  - docs/specs/05.仕様書 UI.md
+  - docs/specs/仕様書 UI.md
 notes:
   - 本プランはフェーズ1（UIのみ）で、ごみ箱（#11/#12）は別タスクとして除外する
 ---
@@ -12,7 +12,7 @@ notes:
 ## 目的
 
 - ログイン中（スタブ認証）時に表示される `AuthedScreen`（`mono-log9-app/components/authed/AuthedScreen.tsx`）を、Miro「ログイン中（sm）」「ログイン中(md)」フレームの配置に寄せて **UIのみ** で作る。
-- `docs/specs/05.仕様書 UI.md` の「ログイン済み: main に article が2つ（コンテナ1/2）」に合わせ、sm/md のレイアウト差分を Tailwind で担保する。
+- `docs/specs/仕様書 UI.md` の「ログイン済み: main に article が2つ（コンテナ1/2）」に合わせ、sm/md のレイアウト差分を Tailwind で担保する。
 - ごみ箱（作業計画書 #11/#12）は本タスクから除外する（画面・導線・操作ともに着手しない）。
 
 ## 前提（現状確認）

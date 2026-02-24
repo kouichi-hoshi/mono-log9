@@ -1,5 +1,5 @@
 ---
-title: 05.仕様書 UI
+title: 仕様書 UI
 source:
 author:
 published:

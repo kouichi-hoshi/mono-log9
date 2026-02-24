@@ -3,9 +3,9 @@ title: 項番21 テストケース（hasEdits離脱確認）
 created: 2026-02-19
 source:
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/manage/作業計画書.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/02.仕様書 機能.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/06.テキスト・コンテンツ定義.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/09.仕様書 URLクエリ状態管理.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 機能.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/テキスト・コンテンツ定義.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 URLクエリ状態管理.md
 ---
 
 # 項番21 テストケース
@@ -43,4 +43,4 @@ source:
 | TC-016 | E2E | 実導線: URL変更時に編集継続 | `/?stubAuth=1&view=memo` でメモ編集中（変更あり） | 「ごみ箱」押下→ダイアログで「編集を続ける」 | URLは `view=memo` のまま、入力中本文が保持される |  |  |  |
 | TC-017 | E2E | 実導線: URL変更時に破棄続行 | `/?stubAuth=1&view=memo` でメモ編集中（変更あり） | 「ごみ箱」押下→ダイアログで「破棄して続行」 | `view=trash` へ遷移し、編集中データは破棄される |  |  |  |
 | TC-018 | E2E | 実導線: 戻る操作の離脱確認 | `/?stubAuth=1&view=note` でノート編集中（変更あり） | 履歴操作（戻る）を実行→「編集を続ける」→再度戻る→「破棄して続行」 | 1回目は編集継続、2回目は遷移が適用される |  |  |  |
-| TC-019 | E2E | 文言整合（hasEdits） | 離脱確認ダイアログが表示できる状態 | ダイアログ表示時の文言を確認する | `docs/specs/06` の文言（「編集中の内容があります。破棄して続行しますか？」「破棄して続行」「編集を続ける」）に一致する |  |  |  |
+| TC-019 | E2E | 文言整合（hasEdits） | 離脱確認ダイアログが表示できる状態 | ダイアログ表示時の文言を確認する | `docs/specs/テキスト・コンテンツ定義` の文言（「編集中の内容があります。破棄して続行しますか？」「破棄して続行」「編集を続ける」）に一致する |  |  |  |

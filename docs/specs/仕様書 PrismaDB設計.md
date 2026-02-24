@@ -1,10 +1,10 @@
 ---
-title: 15.仕様書 PrismaDB設計
+title: 仕様書 PrismaDB設計
 source:
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/manage/作業計画書.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/02.仕様書 機能.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/03.仕様書 環境変数 env.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/12.仕様書 投稿編集-本文形式.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 機能.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 環境変数 env.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 投稿編集-本文形式.md
 author:
   -
 published:
@@ -40,10 +40,10 @@ tags:
 
 # 前提
 
-- DBは PostgreSQL を使用する（`docs/specs/02.仕様書 機能.md`）
+- DBは PostgreSQL を使用する（`docs/specs/仕様書 機能.md`）
 - ORMは Prisma を使用する
 - UUID採番は `gen_random_uuid()` を使用する（`pgcrypto` 拡張）
-- 本文保存形式は `docs/specs/12.仕様書 投稿編集-本文形式.md` を正とする
+- 本文保存形式は `docs/specs/仕様書 投稿編集-本文形式.md` を正とする
   - `content`: TipTap doc JSON
   - `contentText`: サーバー導出のプレーンテキスト
 
@@ -137,7 +137,7 @@ tags:
 
 ## cursor 要件
 
-- cursor token 契約（`v1` payload、デコード/検証、ページ継続条件、`INVALID_CURSOR` 判定）は `docs/specs/16.仕様書 Cursorページングトークン.md` を正とする
+- cursor token 契約（`v1` payload、デコード/検証、ページ継続条件、`INVALID_CURSOR` 判定）は `docs/specs/仕様書 Cursorページングトークン.md` を正とする
 - `limit` は未指定時 `10`、許容範囲は `1..50` とする
 - `limit` が許容範囲外の場合は `VALIDATION_ERROR` を返す
 
@@ -165,7 +165,7 @@ tags:
 | 未ログイン（セッションなし、または `googleSub` から主体解決不可） | 401 | `UNAUTHORIZED` | 入力検証より優先して返す |
 | 環境/設定ガード違反（例: スタブ禁止環境でスタブ導線を利用） | 403 | `FORBIDDEN` | 環境ガード時のみ返す |
 | 入力不正（`limit` 範囲外、`postId` 形式不正、本文/タイトル不正など） | 400 | `VALIDATION_ERROR` |  |
-| cursor 不正/参照不能 | 400 | `INVALID_CURSOR` | 詳細は `docs/specs/16.仕様書 Cursorページングトークン.md` を正とする |
+| cursor 不正/参照不能 | 400 | `INVALID_CURSOR` | 詳細は `docs/specs/仕様書 Cursorページングトークン.md` を正とする |
 | 対象不存在/他ユーザー対象/状態不一致 | 404 | `NOT_FOUND` | 情報漏洩防止のため同一コードで扱う |
 | 想定外例外 | 500 | `INTERNAL_ERROR` |  |
 

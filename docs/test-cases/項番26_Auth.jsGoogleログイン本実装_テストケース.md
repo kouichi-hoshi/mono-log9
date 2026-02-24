@@ -3,10 +3,10 @@ title: 項番26 テストケース（Auth.js Googleログイン本実装）
 created: 2026-02-20
 source:
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/manage/作業計画書.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/02.仕様書 機能.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/03.仕様書 環境変数 env.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/06.テキスト・コンテンツ定義.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/14.仕様書 Auth.js（Googleログイン）導入.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 機能.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 環境変数 env.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/テキスト・コンテンツ定義.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 Auth.js（Googleログイン）導入.md
 ---
 
 # 項番26 テストケース

@@ -3,12 +3,12 @@ title: 項番27 テストケース（Prisma/DB設計）
 created: 2026-02-23
 source:
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/manage/作業計画書.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/02.仕様書 機能.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/03.仕様書 環境変数 env.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/11.仕様書 投稿一覧取得-キャッシュ-ページング.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/12.仕様書 投稿編集-本文形式.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/14.仕様書 Auth.js（Googleログイン）導入.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/15.仕様書 PrismaDB設計.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 機能.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 環境変数 env.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 投稿一覧取得-キャッシュ-ページング.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 投稿編集-本文形式.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 Auth.js（Googleログイン）導入.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 PrismaDB設計.md
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/designs/PrismaDB設計_設計.md
 ---
 

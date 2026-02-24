@@ -1,9 +1,9 @@
 ---
 title: PrismaDB設計_設計
 source:
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/15.仕様書 PrismaDB設計.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/02.仕様書 機能.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/12.仕様書 投稿編集-本文形式.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 PrismaDB設計.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 機能.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 投稿編集-本文形式.md
 author:
   -
 published:
@@ -30,7 +30,7 @@ tags:
 - DBは不正状態を保存しないための最小制約を持つ
 - 投稿一覧は keyset pagination 前提で設計する（`createdAt/id`、`trashedAt/id`）
 - 認可境界はクエリ条件に埋め込み、後段フィルタに依存しない
-- 複合インデックスは `docs/specs/15.仕様書 PrismaDB設計.md` の必須要件をそのまま実装する
+- 複合インデックスは `docs/specs/仕様書 PrismaDB設計.md` の必須要件をそのまま実装する
 
 # Prismaモデル（案）
 

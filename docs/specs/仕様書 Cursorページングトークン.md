@@ -1,8 +1,8 @@
 ---
-title: 16.仕様書 Cursorページングトークン
+title: 仕様書 Cursorページングトークン
 source:
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/11.仕様書 投稿一覧取得-キャッシュ-ページング.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/15.仕様書 PrismaDB設計.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 投稿一覧取得-キャッシュ-ページング.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 PrismaDB設計.md
 author:
   -
 published:
@@ -34,7 +34,7 @@ tags:
 
 非対象:
 
-- キャッシュTTLや再取得条件（`docs/specs/11...` を正とする）
+- キャッシュTTLや再取得条件（`docs/specs/仕様書 投稿一覧取得-キャッシュ-ページング.md` を正とする）
 - 投稿作成/更新/削除の本文バリデーション
 
 # 用語

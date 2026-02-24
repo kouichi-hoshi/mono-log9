@@ -1,5 +1,5 @@
 ---
-title: 04.仕様書 設定 PWA
+title: 仕様書 設定 PWA
 source:
 author:
 published:

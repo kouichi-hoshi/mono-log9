@@ -1,12 +1,12 @@
 ---
-title: 14.仕様書 Auth.js（Googleログイン）導入
+title: 仕様書 Auth.js（Googleログイン）導入
 source:
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/manage/作業計画書.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/01.要件定義書.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/02.仕様書 機能.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/03.仕様書 環境変数 env.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/06.テキスト・コンテンツ定義.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/09.仕様書 URLクエリ状態管理.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/要件定義書.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 機能.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 環境変数 env.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/テキスト・コンテンツ定義.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 URLクエリ状態管理.md
 author:
   -
 published:

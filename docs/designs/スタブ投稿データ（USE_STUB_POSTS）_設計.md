@@ -1,10 +1,10 @@
 ---
 title: スタブ投稿データ（USE_STUB_POSTS）_設計
 source:
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/02.仕様書 機能.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/03.仕様書 環境変数 env.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/06.テキスト・コンテンツ定義.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/09.仕様書 URLクエリ状態管理.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 機能.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 環境変数 env.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/テキスト・コンテンツ定義.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 URLクエリ状態管理.md
 author:
   -
 published:
@@ -31,7 +31,7 @@ tags:
 
 # 環境変数と有効条件
 
-`USE_STUB_POSTS` の扱いは `docs/specs/03.仕様書 環境変数 env.md` を正とする。
+`USE_STUB_POSTS` の扱いは `docs/specs/仕様書 環境変数 env.md` を正とする。
 
 ## 有効条件（必須）
 
@@ -93,7 +93,7 @@ tags:
 補足:
 
 - 詳細な型名は実装側で定義してよいが、入出力の意味は本表を満たすこと
-- `view=trash` のとき、`favoriteOnly` は無視する（`docs/specs/09` と整合）
+- `view=trash` のとき、`favoriteOnly` は無視する（`docs/specs/仕様書 URLクエリ状態管理` と整合）
 
 ## 書き込み系I/F契約
 
@@ -254,7 +254,7 @@ tags:
 - エラーの使い分けは以下の通り
   - 403: スタブ導線が禁止される環境（`NODE_ENV=test/production`）でスタブ実装を利用しようとした場合
   - 未対応エラー: `NODE_ENV=development` かつ `USE_STUB_POSTS=false` で、本実装が未着手の場合
-- UI側は `docs/specs/06.テキスト・コンテンツ定義.md` のエラー通知文言を利用する
+- UI側は `docs/specs/テキスト・コンテンツ定義.md` のエラー通知文言を利用する
 - 失敗時は入力中データ/画面状態を可能な限り維持する
 
 # 非スコープ

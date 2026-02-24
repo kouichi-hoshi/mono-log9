@@ -3,9 +3,9 @@ title: 項番28 テストケース（TipTapノート永続化 DB/API接続）
 created: 2026-02-24
 source:
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/manage/作業計画書.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/02.仕様書 機能.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/12.仕様書 投稿編集-本文形式.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/15.仕様書 PrismaDB設計.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 機能.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 投稿編集-本文形式.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 PrismaDB設計.md
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/designs/投稿編集-本文形式_設計.md
 ---
 

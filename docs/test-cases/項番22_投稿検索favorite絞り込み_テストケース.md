@@ -3,13 +3,13 @@ title: 項番22 テストケース（投稿検索 favorite絞り込み）
 created: 2026-02-19
 source:
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/manage/作業計画書.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/01.要件定義書.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/02.仕様書 機能.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/09.仕様書 URLクエリ状態管理.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/10.仕様書 スタブ投稿データ（USE_STUB_POSTS）.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/11.仕様書 投稿一覧取得-キャッシュ-ページング.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/要件定義書.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 機能.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 URLクエリ状態管理.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 スタブ投稿データ（USE_STUB_POSTS）.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 投稿一覧取得-キャッシュ-ページング.md
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/designs/投稿一覧取得-キャッシュ-ページング_設計.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/06.テキスト・コンテンツ定義.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/テキスト・コンテンツ定義.md
 ---
 
 # 項番22 テストケース

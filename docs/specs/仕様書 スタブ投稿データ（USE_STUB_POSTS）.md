@@ -1,10 +1,10 @@
 ---
-title: 10.仕様書 スタブ投稿データ（USE_STUB_POSTS）
+title: 仕様書 スタブ投稿データ（USE_STUB_POSTS）
 source:
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/02.仕様書 機能.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/03.仕様書 環境変数 env.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/06.テキスト・コンテンツ定義.md
-  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/09.仕様書 URLクエリ状態管理.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 機能.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 環境変数 env.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/テキスト・コンテンツ定義.md
+  - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 URLクエリ状態管理.md
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/designs/スタブ投稿データ（USE_STUB_POSTS）_設計.md
 author:
   -
@@ -31,7 +31,7 @@ tags:
 
 # 前提（環境変数）
 
-`USE_STUB_POSTS` の扱いは `docs/specs/03.仕様書 環境変数 env.md` を正とする。
+`USE_STUB_POSTS` の扱いは `docs/specs/仕様書 環境変数 env.md` を正とする。
 
 # 機能仕様
 
@@ -67,7 +67,7 @@ tags:
 
 - スタブ禁止環境でスタブ実装を利用しようとした場合は `403`
 - `development` かつ `USE_STUB_POSTS=false` で本実装が未着手の場合は未対応エラー
-- エラー表示文言は `docs/specs/06.テキスト・コンテンツ定義.md` に従う
+- エラー表示文言は `docs/specs/テキスト・コンテンツ定義.md` に従う
 
 ## データ保持
 

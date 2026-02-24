@@ -2,8 +2,8 @@
 title: スタブ認証（URLトグル） 設計
 created: 2026-02-08
 source:
-  - docs/specs/07.仕様書 スタブ認証（URLトグル）.md
-  - docs/specs/03.仕様書 環境変数 env.md
+  - docs/specs/仕様書 スタブ認証（URLトグル）.md
+  - docs/specs/仕様書 環境変数 env.md
   - docs/manage/作業計画書.md
 tags:
   - designs
@@ -81,7 +81,7 @@ tags:
 - 既存の `searchParams` をコピーして編集する
 - ログイン: `stubAuth=1` を set（他クエリは保持）
 - ログアウト: URL パラメータを全削除して `/` へ遷移
-- ログイン中画面で `view/favoriteMemo/favoriteNote` を更新する際は、他クエリを保持する（`docs/specs/09.仕様書 URLクエリ状態管理.md`）
+- ログイン中画面で `view/favoriteMemo/favoriteNote` を更新する際は、他クエリを保持する（`docs/specs/仕様書 URLクエリ状態管理.md`）
 
 （実装例: `new URLSearchParams(searchParams)` のような形で編集）
 
@@ -92,7 +92,7 @@ tags:
 - 「ログイン」ボタンでモーダルを開く
 - 「Googleでログイン」押下:
   - 成功スタブ: `stubAuth=1` を付与して画面切替
-  - 失敗/キャンセル: `docs/specs/06` の文言でトースト表示し、モーダルを閉じる
+  - 失敗/キャンセル: `docs/specs/テキスト・コンテンツ定義` の文言でトースト表示し、モーダルを閉じる
 
 ※ 成功/失敗の切替方法は、最初は固定（成功のみ等）でもよい。テスト目的でトグルできるようにする場合も、あくまで dev-only に閉じ込める。
 
