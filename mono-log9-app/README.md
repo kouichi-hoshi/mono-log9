@@ -31,6 +31,18 @@ pnpm test:e2e:ui
 pnpm test:e2e:headed
 ```
 
+## Jest（Unit / 結合テスト）
+
+```bash
+# 通常実行（DB結合テストはスキップ）
+pnpm jest
+
+# DB結合テストを含めて全実行（DATABASE_URL 有効・DB起動が必要）
+RUN_DB_INTEGRATION_TESTS=true pnpm jest
+```
+
+DB結合テストは `RUN_DB_INTEGRATION_TESTS=true` のときのみ実行されます。詳細は `../docs/test-cases/項番28_TipTapノート永続化_テストケース.md` を参照。
+
 ## Playwright UIモード
 
 アプリディレクトリ（`mono-log9-app`）にいる場合:

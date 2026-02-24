@@ -25,7 +25,8 @@ describe("PostCard", () => {
     sanitizeRichHtmlMock.mockImplementation(actualSanitizeRichHtml);
   });
 
-  it("renders sanitized html for note body", () => {
+  describe("TC-044: note display prioritizes content-derived HTML", () => {
+    it("renders .md-content with HTML elements (h2, etc.) when valid note content + contentText", () => {
     const post: PostRecord = {
       id: "note-001",
       mode: "note",
@@ -94,6 +95,7 @@ describe("PostCard", () => {
 
     const content = screen.getByTestId("post-content");
 
+    expect(content.querySelector(".md-content")).not.toBeNull();
     expect(within(content).getByRole("heading", { level: 2, name: "見出し" })).toBeInTheDocument();
     expect(content.querySelector("ul")).not.toBeNull();
     expect(content.querySelector("blockquote")?.textContent).toContain("引用本文");
@@ -103,6 +105,7 @@ describe("PostCard", () => {
     expect(link).toHaveAttribute("href", "https://example.com");
     expect(link).toHaveAttribute("target", "_blank");
     expect(content.querySelector("script")).toBeNull();
+    });
   });
 
   it("renders note title and body when title exists", () => {
@@ -129,7 +132,8 @@ describe("PostCard", () => {
     expect(screen.getByText("本文見出し")).toBeInTheDocument();
   });
 
-  it("falls back to plain text rendering for non-html note content", () => {
+  describe("TC-045: contentText fallback when content conversion fails", () => {
+    it("displays contentText instead of .md-content when content is invalid or unsupported", () => {
     const post: PostRecord = {
       id: "note-003",
       mode: "note",
@@ -158,6 +162,36 @@ describe("PostCard", () => {
     expect(content).toHaveTextContent("箇条書き2");
     expect(content.querySelector(".md-content")).toBeNull();
     expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("TC-046: fail-closed when HTML不可 and contentText empty", () => {
+    it("renders empty body without throwing when content is invalid and contentText is empty", () => {
+      const post: PostRecord = {
+        id: "note-fail-closed",
+        mode: "note",
+        content: { type: "doc", content: [{ type: "unknown" }] },
+        contentText: "",
+        createdAt: "2026-02-15 12:00",
+        favorite: false,
+      };
+
+      expect(() =>
+        render(
+          <PostCard
+            post={post}
+            onToggleFavorite={jest.fn()}
+            onEdit={jest.fn()}
+            onMoveToTrash={jest.fn()}
+          />
+        )
+      ).not.toThrow();
+
+      const content = screen.getByTestId("post-content");
+      expect(content.querySelector(".md-content")).toBeNull();
+      expect(content.textContent?.trim()).toBe("");
+      expect(content.querySelector("script")).toBeNull();
+    });
   });
 
   it("renders empty safe output when sanitizer returns empty string", () => {
