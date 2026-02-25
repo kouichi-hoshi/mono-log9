@@ -1,18 +1,24 @@
 import "@testing-library/jest-dom";
 
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: jest.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: jest.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    })),
+  });
+  Object.defineProperty(window, "scrollTo", {
+    configurable: true,
+    value: jest.fn(),
+  });
+}
 
 class ResizeObserverMock {
   observe() {}
@@ -38,19 +44,17 @@ class IntersectionObserverMock {
 global.IntersectionObserver =
   IntersectionObserverMock as unknown as typeof IntersectionObserver;
 
-Object.defineProperty(window, "scrollTo", {
-  configurable: true,
-  value: jest.fn(),
-});
-
-if (!HTMLElement.prototype.getClientRects) {
+if (typeof document !== "undefined" && typeof HTMLElement !== "undefined" && !HTMLElement.prototype.getClientRects) {
   Object.defineProperty(HTMLElement.prototype, "getClientRects", {
     configurable: true,
     value: () => [document.body.getBoundingClientRect()],
   });
 }
 
-if (!HTMLElement.prototype.getBoundingClientRect) {
+if (
+  typeof HTMLElement !== "undefined" &&
+  !HTMLElement.prototype.getBoundingClientRect
+) {
   Object.defineProperty(HTMLElement.prototype, "getBoundingClientRect", {
     configurable: true,
     value: () => ({
@@ -67,7 +71,7 @@ if (!HTMLElement.prototype.getBoundingClientRect) {
   });
 }
 
-if (!document.elementFromPoint) {
+if (typeof document !== "undefined" && !document.elementFromPoint) {
   Object.defineProperty(document, "elementFromPoint", {
     configurable: true,
     value: () => document.body,

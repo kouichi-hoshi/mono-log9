@@ -1,5 +1,9 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import {
+  createStubAuthForbiddenError,
+  isStubAuthMisconfigured,
+} from "@/lib/env";
 
 const providers =
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -11,7 +15,7 @@ const providers =
       ]
     : [];
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const { handlers, auth: authImpl, signIn, signOut } = NextAuth({
   providers,
   trustHost: true,
   session: {
@@ -38,3 +42,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
+
+export { handlers, signIn, signOut };
+
+function authWithGuard(...args: Parameters<typeof authImpl>): ReturnType<typeof authImpl> {
+  if (isStubAuthMisconfigured()) {
+    throw createStubAuthForbiddenError();
+  }
+  return authImpl(...args);
+}
+
+/** 公開型を authImpl と同一に維持しつつガードを挟む（auth(handler) 契約を保護） */
+export const auth = authWithGuard as unknown as typeof authImpl;
