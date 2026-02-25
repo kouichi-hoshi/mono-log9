@@ -12,6 +12,7 @@ import {
 } from "@/lib/posts/content";
 import { toSanitizableHtml } from "@/lib/posts/contentHtml";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { ensureSafeTestDatabaseOrThrow } from "@/lib/db/testDatabaseGuard";
 import { createDbPostRepository } from "@/lib/posts/repositories/dbPostRepository";
 import type { PostContent } from "@/lib/posts/types";
 
@@ -97,6 +98,7 @@ describeDb("dbPostRepository integration", () => {
   let repoB: ReturnType<typeof createDbPostRepository>;
 
   beforeAll(async () => {
+    await ensureSafeTestDatabaseOrThrow({ runner: "jest-db" });
     prisma = (await getPrismaClient()) as PrismaClient;
     try {
       await prisma.$queryRaw`SELECT 1`;

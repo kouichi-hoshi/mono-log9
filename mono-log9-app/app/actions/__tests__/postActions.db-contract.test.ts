@@ -11,6 +11,7 @@ import {
   updatePostAction,
 } from "@/app/actions/postActions";
 import { getPrismaClient } from "@/lib/db/prisma";
+import { ensureSafeTestDatabaseOrThrow } from "@/lib/db/testDatabaseGuard";
 import { createDocFromPlainText, extractContentText } from "@/lib/posts/content";
 import type { CreatePostInput, UpdatePostInput } from "@/lib/posts/types";
 
@@ -40,6 +41,7 @@ describeDb("postActions db contract", () => {
   let actorUserId: string;
 
   beforeAll(async () => {
+    await ensureSafeTestDatabaseOrThrow({ runner: "jest-db" });
     prisma = (await getPrismaClient()) as PrismaClient;
     try {
       await prisma.$queryRaw`SELECT 1`;
