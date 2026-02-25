@@ -101,6 +101,51 @@ tags:
 - `stubAuth` は dev-only。`NODE_ENV=test/production` では無効化されるため、URLに残っても表示切替は起きない
 - `USE_STUB_AUTH` を参照する箇所を集約し、ガード漏れを防ぐ
 
+# 項番30: Auth Route / authAdapter ガード設計
+
+## 判定関数（集約）
+
+`lib/env.ts` に誤設定判定関数を追加し、Auth Route と `authAdapter` 相当の入口から共通利用する。
+
+- `isStubAuthMisconfigured(): boolean`
+  - `process.env.USE_STUB_AUTH === "true"`
+  - かつ `process.env.NODE_ENV` が `test` または `production`
+
+## Route Handler での扱い
+
+対象: `app/api/auth/[...nextauth]/route.ts`
+
+- リクエスト受信時に `isStubAuthMisconfigured()` を評価する
+- `true` の場合は即座に `403` JSON を返却し、`handlers.GET/POST` へ委譲しない
+- `false` の場合は既存 `handlers` に委譲する
+
+## authAdapter 相当入口での扱い
+
+対象: `auth.ts`（Auth.js 初期化境界）
+
+- 初期化時または認証処理入口で `isStubAuthMisconfigured()` を評価する
+- `true` の場合は `FORBIDDEN` 契約で失敗させる（Route 側と同一 `code/message` を使用する）
+- `auth.ts` はHTTP境界ではないため、JSONレスポンス返却は要求しない（例外/エラー返却でよい）
+- Route 側ガードとの二重化を許容する（防御目的）
+
+## ログ
+
+- 誤設定検知時は warning レベルで出力する
+- 1リクエストで重複ログを避ける（可能な範囲でよい）
+- 機密情報はログに含めない
+
+## テスト設計（最小）
+
+- Unit: `isStubAuthMisconfigured()` の真偽表
+  - `development + true => false`
+  - `test + true => true`
+  - `production + true => true`
+  - `staging/other + true => false`
+  - `test/production + false or unset => false`
+- Integration: `/api/auth/[...nextauth]`
+  - 誤設定時 `403` + JSON 契約
+  - 非誤設定時は `403` にならない
+
 # 動作確認（手動）
 
 - `USE_STUB_AUTH=true`（development）

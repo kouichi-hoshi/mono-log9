@@ -77,6 +77,44 @@ Auth.js 本実装（認証・セッション取得）を行う前に、未ログ
 - ログイン時（`stubAuth=1` の付与）: 既存の URL クエリ（例: `view/favoriteMemo/favoriteNote` 等）は **保持** する
 - ログアウト時: 未ログイン画面へ戻すため URL パラメータは全削除する（`/` へ遷移）
 
+## Auth Route / authAdapter ガード（項番30）
+
+### 目的
+
+`USE_STUB_AUTH` の誤設定により test/production でスタブ導線が有効化される事故を防止する。
+
+### ガード条件
+
+以下をすべて満たす場合は、認証系スタブ導線を禁止する。
+
+- `NODE_ENV` が `test` または `production`
+- `USE_STUB_AUTH=true`
+
+### 必須挙動
+
+- Auth Route Handler（`/api/auth/[...nextauth]`）は `403 FORBIDDEN` を返す。
+- `authAdapter` 相当の認証入口（Auth.js 初期化境界）でも同条件を検知し、同一 `code/message` の `FORBIDDEN` 契約で失敗させる（HTTPレスポンスJSONは要求しない）。
+- 上記条件を満たさない場合、通常の Auth.js 挙動を妨げない。
+
+### エラー契約
+
+#### Route Handler（HTTP境界）
+
+- HTTP: `403`
+- Body(JSON):
+  - `error.code`: `FORBIDDEN`
+  - `error.message`: `stub auth is disabled in this environment`
+
+#### authAdapter 相当入口（非HTTP境界）
+
+- `FORBIDDEN` 契約で失敗させる（`code/message` は Route Handler と同一）
+- JSONレスポンス形式は要求しない
+
+### ログ方針
+
+- 誤設定検知時はサーバーログに warning を1回以上出力する。
+- ログには機密情報を含めない（環境名・判定結果・対象エンドポイントのみ）。
+
 # 非スコープ
 
 - Auth.js による実認証・セッション取得
@@ -90,3 +128,6 @@ Auth.js 本実装（認証・セッション取得）を行う前に、未ログ
 - `NODE_ENV=test/production` では `stubAuth=1` があってもログイン中画面にならない
 - ログイン時の `stubAuth` 付与で他クエリが失われない
 - ログアウト時は URL パラメータが全削除され `/` へ戻る
+- `NODE_ENV=test/production` かつ `USE_STUB_AUTH=true` で `/api/auth/[...nextauth]` が `403` を返す
+- `403` 応答の JSON 形式が契約どおりである
+- `NODE_ENV=test/production` かつ `USE_STUB_AUTH=true` で `authAdapter` 相当入口が `FORBIDDEN` 契約で失敗する
