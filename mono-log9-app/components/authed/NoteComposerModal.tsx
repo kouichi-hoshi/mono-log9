@@ -41,6 +41,14 @@ export default function NoteComposerModal({
     plainText: "",
   });
   const [showValidationError, setShowValidationError] = React.useState(false);
+  const draftRef = React.useRef(draft);
+  const initializedSeedRef = React.useRef<string | null>(null);
+  const initializedDraftRef = React.useRef<NoteDraft | null>(null);
+  const hasUserEditedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
 
   const handleTitleChange = React.useCallback((nextTitle: string) => {
     setDraft((current) => ({
@@ -64,6 +72,9 @@ export default function NoteComposerModal({
     if (!open) {
       onDirtyChange?.(false);
       onDraftChange?.(null);
+      initializedSeedRef.current = null;
+      initializedDraftRef.current = null;
+      hasUserEditedRef.current = false;
       return;
     }
 
@@ -72,10 +83,29 @@ export default function NoteComposerModal({
       contentJson: initialContentJson ?? null,
       plainText: initialPlainText ?? "",
     };
+    const nextSeed = JSON.stringify({
+      mode,
+      title: nextDraft.title,
+      contentJson: nextDraft.contentJson,
+      plainText: nextDraft.plainText,
+    });
+    const isSeedChanged = initializedSeedRef.current !== nextSeed;
+
+    if (!isSeedChanged) {
+      return;
+    }
+
+    // Keep user edits when parent props change unexpectedly while the modal stays open.
+    if (initializedSeedRef.current !== null && hasUserEditedRef.current) {
+      return;
+    }
 
     setDraft(nextDraft);
     onDraftChange?.(nextDraft);
     setShowValidationError(false);
+    initializedSeedRef.current = nextSeed;
+    initializedDraftRef.current = nextDraft;
+    hasUserEditedRef.current = false;
   }, [initialContentJson, initialPlainText, initialTitle, onDirtyChange, onDraftChange, open, mode]);
 
   React.useEffect(() => {
@@ -83,20 +113,26 @@ export default function NoteComposerModal({
       return;
     }
 
-    onDraftChange?.(draft);
-    onDirtyChange?.(
-      isNoteDirty(
-        {
-          title: initialTitle,
-          content: initialContentJson,
-        },
-        {
-          title: draft.title,
-          content: draft.contentJson,
-        }
-      )
+    const baselineDraft = initializedDraftRef.current ?? {
+      title: initialTitle ?? "",
+      contentJson: initialContentJson ?? null,
+      plainText: initialPlainText ?? "",
+    };
+    const dirty = isNoteDirty(
+      {
+        title: baselineDraft.title,
+        content: baselineDraft.contentJson,
+      },
+      {
+        title: draft.title,
+        content: draft.contentJson,
+      }
     );
-  }, [draft, initialContentJson, initialTitle, onDirtyChange, onDraftChange, open]);
+
+    hasUserEditedRef.current = dirty;
+    onDraftChange?.(draft);
+    onDirtyChange?.(dirty);
+  }, [draft, initialContentJson, initialPlainText, initialTitle, onDirtyChange, onDraftChange, open]);
 
   const closeNoteModal = React.useCallback(() => {
     onOpenChange(false);

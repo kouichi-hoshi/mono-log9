@@ -2431,6 +2431,37 @@ describe("AuthedScreen", () => {
     });
     expect(screen.getByRole("heading", { name: "ログイン" })).toBeInTheDocument();
     expect(screen.getByLabelText("ノートタイトル")).toHaveValue("401でも保持されるノートタイトル");
+    expect(screen.getByLabelText("ノート本文")).toHaveTextContent("内容");
+  });
+
+  it("keeps note draft in authjs mode when create returns UNAUTHORIZED", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+    getPostActionsMock().createPostAction.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      },
+    });
+
+    renderAuthedScreen({ authMode: "authjs" });
+
+    await user.click(screen.getByLabelText("ノートを書く"));
+
+    const titleInput = await screen.findByLabelText("ノートタイトル");
+    const noteBody = screen.getByLabelText("ノート本文");
+    await user.type(titleInput, "authjs401タイトル保持");
+    await user.click(noteBody);
+    await user.paste("authjs401-body-retained");
+    await user.click(screen.getByRole("button", { name: "保存する" }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("ログインが必要です");
+    });
+    expect(screen.getByRole("heading", { name: "ログイン" })).toBeInTheDocument();
+    expect(screen.getByLabelText("ノートタイトル")).toHaveValue("authjs401タイトル保持");
+    expect(screen.getByLabelText("ノート本文")).toHaveTextContent("authjs401-body-retained");
   });
 
   it("opens login dialog even when relogin draft persistence fails on UNAUTHORIZED", async () => {

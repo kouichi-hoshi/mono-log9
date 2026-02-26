@@ -773,6 +773,14 @@ export default function AuthedScreen({
 
     if (noteComposer.mode === "create") {
       if (initializedNoteComposerRef.current === "create") {
+        if (restoredNoteDraft && !noteModalDirty) {
+          setNoteModalInitialTitle(restoredNoteDraft.title);
+          setNoteModalInitialContent(restoredNoteDraft.contentJson);
+          setNoteModalInitialPlainText(restoredNoteDraft.plainText);
+          setNoteModalDirty(false);
+          setRestoredNoteDraft(null);
+          return;
+        }
         return;
       }
 
@@ -784,7 +792,9 @@ export default function AuthedScreen({
       setNoteModalInitialContent(restoredNoteDraft?.contentJson ?? null);
       setNoteModalInitialPlainText(restoredNoteDraft?.plainText ?? "");
       setNoteModalDirty(false);
-      setRestoredNoteDraft(null);
+      if (restoredNoteDraft) {
+        setRestoredNoteDraft(null);
+      }
       return;
     }
 
@@ -833,7 +843,9 @@ export default function AuthedScreen({
     );
     setNoteModalInitialPlainText(restoredNoteDraft?.plainText ?? targetPost.contentText);
     setNoteModalDirty(false);
-    setRestoredNoteDraft(null);
+    if (restoredNoteDraft) {
+      setRestoredNoteDraft(null);
+    }
   }, [
     closeNoteModalNow,
     findInCachedPostLists,

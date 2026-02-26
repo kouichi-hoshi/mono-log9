@@ -135,4 +135,35 @@ describe("NoteComposerModal", () => {
     });
     expect(screen.getByRole("button", { name: "更新する" })).toBeInTheDocument();
   });
+
+  it("preserves editing draft when initial props change while dirty", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = jest.fn();
+
+    const { rerender } = render(
+      <NoteComposerModal
+        open
+        onOpenChange={onOpenChange}
+        mode="create"
+        initialTitle=""
+        onSaveStub={jest.fn().mockResolvedValue(true)}
+      />
+    );
+
+    const titleInput = screen.getByLabelText("ノートタイトル");
+    await user.type(titleInput, "編集中タイトル");
+    expect(screen.getByLabelText("ノートタイトル")).toHaveValue("編集中タイトル");
+
+    rerender(
+      <NoteComposerModal
+        open
+        onOpenChange={onOpenChange}
+        mode="create"
+        initialTitle="外部更新タイトル"
+        onSaveStub={jest.fn().mockResolvedValue(true)}
+      />
+    );
+
+    expect(screen.getByLabelText("ノートタイトル")).toHaveValue("編集中タイトル");
+  });
 });
