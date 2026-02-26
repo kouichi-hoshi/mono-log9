@@ -71,14 +71,14 @@ if (
   });
 }
 
-if (typeof Text !== "undefined" && !Text.prototype.getClientRects) {
+if (typeof Text !== "undefined" && !("getClientRects" in Text.prototype)) {
   Object.defineProperty(Text.prototype, "getClientRects", {
     configurable: true,
     value: () => [],
   });
 }
 
-if (typeof Text !== "undefined" && !Text.prototype.getBoundingClientRect) {
+if (typeof Text !== "undefined" && !("getBoundingClientRect" in Text.prototype)) {
   Object.defineProperty(Text.prototype, "getBoundingClientRect", {
     configurable: true,
     value: () => ({

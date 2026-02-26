@@ -60,7 +60,7 @@ export default function NoteEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
-        blockquote: true,
+        blockquote: {},
         code: false,
         codeBlock: false,
         heading: {

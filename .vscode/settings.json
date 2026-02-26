@@ -1,7 +1,11 @@
 {
   "cSpell.words": [
     "authjs",
+    "dbgenerated",
+    "noopener",
+    "noreferrer",
     "Relogin",
-    "textblock"
+    "textblock",
+    "Timestamptz"
   ]
 }

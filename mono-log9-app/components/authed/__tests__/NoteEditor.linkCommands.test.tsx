@@ -103,7 +103,7 @@ describe("NoteEditor link commands", () => {
 
     const starterKit = extensionByName.get("starterKit");
     expect(starterKit).toBeDefined();
-    expect(starterKit?.options?.blockquote).toBe(true);
+    expect(starterKit?.options?.blockquote).toEqual({});
     expect(starterKit?.options?.code).toBe(false);
     expect(starterKit?.options?.codeBlock).toBe(false);
     expect(starterKit?.options?.heading).toEqual({ levels: [2, 3, 4] });

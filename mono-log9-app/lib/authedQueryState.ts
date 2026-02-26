@@ -87,11 +87,11 @@ function isSameNoteComposer(a: NoteComposerState, b: NoteComposerState): boolean
     return false;
   }
 
-  if (a.mode !== "edit") {
-    return true;
+  if (a.mode === "edit" && b.mode === "edit") {
+    return a.postId === b.postId;
   }
 
-  return a.postId === b.postId;
+  return true;
 }
 
 function parseQuery(query: string): ParsedQuery {

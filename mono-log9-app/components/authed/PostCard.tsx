@@ -170,7 +170,7 @@ export default function PostCard({
             )}
           </>
         ) : (
-          <div className="whitespace-pre-wrap break-words">{renderMemoContent(post.contentText)}</div>
+          <div className="whitespace-pre-wrap wrap-break-word">{renderMemoContent(post.contentText)}</div>
         )}
       </div>
 
