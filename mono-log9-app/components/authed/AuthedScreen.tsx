@@ -1442,7 +1442,7 @@ export default function AuthedScreen({
         onBeforeAuthRedirect={persistReloginDraft}
       />
       <AlertDialog open={isDiscardDialogOpen} onOpenChange={handleDiscardDialogOpenChange}>
-        <AlertDialogContent className="z-[70]">
+        <AlertDialogContent className="z-70">
           <AlertDialogHeader>
             <AlertDialogTitle>編集中の内容があります。破棄して続行しますか？</AlertDialogTitle>
             <AlertDialogDescription className="sr-only">
@@ -1456,7 +1456,7 @@ export default function AuthedScreen({
         </AlertDialogContent>
       </AlertDialog>
       <AlertDialog open={deleteDialogMode !== null} onOpenChange={handleDeleteDialogOpenChange}>
-        <AlertDialogContent className="z-[70]">
+        <AlertDialogContent className="z-70">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {deleteDialogMode === "selected"

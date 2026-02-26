@@ -14,7 +14,7 @@ source:
 ## 対象
 
 - Playwright による主要フロー総合シナリオ（stub）
-- 実DB + Auth.js 境界のE2E（real project）
+- 実DB + Auth.js 境界のE2E（real project、Google画面操作を除く）
 - ログアウト後の戻る/進む・BFCache観点（Chromium自動 + 必要時に他ブラウザ追加）
 - 実DBテストの安全ガード（fail-fast）
 
@@ -26,7 +26,7 @@ source:
 ## 完了判定（項番32）
 
 - 必須TC（TC-001〜TC-010）が実装済みかつ Pass
-- `@oauth-manual` を含むケースはデフォルト実行対象外で運用ルールが明記されている
+- Google OAuth 画面操作は通常ブラウザ手動スモークとして運用ルールが明記されている
 - 実DB E2Eは安全ガード条件を満たさない場合に開始前停止する
 
 ## 実行前チェック（実DB E2E）
@@ -45,7 +45,7 @@ source:
 # 既存stub E2E
 pnpm test:e2e
 
-# 実DB E2E（real project）
+# 実DB E2E（real project, Google画面操作を除く）
 RUN_REAL_E2E=true \
 ALLOW_DB_WRITE_FOR_TESTS=true \
 TEST_DB_HOST_ALLOWLIST=localhost,127.0.0.1 \
@@ -65,5 +65,5 @@ pnpm test:e2e:real
 | TC-006 | E2E | 実DBガード: host不許可 | `RUN_REAL_E2E=true` ほか設定済み | 許可外hostを `DATABASE_URL` に設定して起動 | 開始前に fail-fast 停止 |  |  |  |
 | TC-007 | E2E | 実DBガード: dbName不許可 | `RUN_REAL_E2E=true` ほか設定済み | 許可外dbNameを `DATABASE_URL` に設定して起動 | 開始前に fail-fast 停止 |  |  |  |
 | TC-008 | E2E | 実DBガード: current_database不一致 | DB接続可能 | URL dbName と current_database() を不一致にして起動 | 開始前に fail-fast 停止 |  |  |  |
-| TC-009 | E2E | 実DB主要フロー（real） | 実DB + Auth.js 境界が有効 | 投稿作成〜表示を実行 | データがDB経路で反映される |  | Google画面操作は必須外 |  |
-| TC-010 | E2E | `@oauth-manual` 運用 | `@oauth-manual` ケース定義済み | 通常実行/手動実行を切替 | 通常実行から除外され、手動時のみ実行される |  |  |  |
+| TC-009 | E2E | 実DB realスモーク（非ログイン） | 実DBガード条件を満たす | 未ログイン画面表示を確認 | Auth.js未ログイン画面が表示される | Pass | `major-flow.real.spec.ts` の smoke ケースで確認 | `mono-log9-app/e2e/major-flow.real.spec.ts` |
+| TC-010 | 手動 | Google OAuthログイン導線 | OAuth設定済み | 通常ブラウザでログイン→戻り→ログアウト | ログイン/戻り/ログアウト導線が成立する |  | Playwright対象外 | 手動証跡（画面キャプチャ等） |

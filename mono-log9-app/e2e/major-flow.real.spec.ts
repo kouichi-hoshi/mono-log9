@@ -1,10 +1,9 @@
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-test.skip(
-  "@oauth-manual real-db major flow template",
-  async () => {
-    // This spec is a placeholder for real DB/Auth.js E2E scenarios.
-    // It is intentionally skipped until the concrete T32-05〜T32-08 flows are implemented.
-  }
-);
+test.describe.configure({ mode: "serial" });
 
+test("real smoke: authjs未ログイン画面が表示される", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "ログイン" })).toBeVisible();
+  await expect(page).not.toHaveURL(/stubAuth=/);
+});

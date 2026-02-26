@@ -1,5 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { listPostsAction } from "@/app/actions/postActions";
+import type { PostsInfiniteData } from "@/lib/posts/infiniteData";
 import { postsListQueryKey, type PostsListCondition } from "@/lib/posts/queryKeys";
 import type { ListPostsResult } from "@/lib/posts/types";
 
@@ -25,7 +26,7 @@ export function usePostsInfiniteQuery(
   condition: PostsListCondition,
   options: UsePostsInfiniteQueryOptions = {}
 ) {
-  return useInfiniteQuery<ListPostsResult, PostsListQueryError, ListPostsResult, ReturnType<typeof postsListQueryKey>, string | undefined>({
+  return useInfiniteQuery<ListPostsResult, PostsListQueryError, PostsInfiniteData, ReturnType<typeof postsListQueryKey>, string | undefined>({
     queryKey: postsListQueryKey(condition),
     enabled: options.enabled ?? true,
     initialPageParam: undefined,

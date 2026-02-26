@@ -1,8 +1,10 @@
-import type { FullConfig } from "@playwright/test";
+import { loadEnvConfig } from "@next/env";
 
 import { ensureSafeTestDatabaseOrThrow } from "../../lib/db/testDatabaseGuard";
 
-async function globalSetup(_config: FullConfig): Promise<void> {
+async function globalSetup(): Promise<void> {
+  loadEnvConfig(process.cwd());
+
   if (process.env.RUN_REAL_E2E !== "true") {
     return;
   }
@@ -13,4 +15,3 @@ async function globalSetup(_config: FullConfig): Promise<void> {
 }
 
 export default globalSetup;
-
