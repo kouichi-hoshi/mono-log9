@@ -60,10 +60,10 @@ pnpm test:e2e:real
 | TC-001 | E2E | stub総合フロー | `USE_STUB_AUTH=true`, `USE_STUB_POSTS=true` | ログイン→作成/編集→favorite→ごみ箱→復元→完全削除 | 主要フローが一連で成立する | Pass | `major-flow.stub.spec.ts` で確認済み | `mono-log9-app/e2e/major-flow.stub.spec.ts` |
 | TC-002 | E2E | ログアウト後戻る/進む（must） | ログイン済み | ログアウト後に戻る/進む操作 | 認可境界が破られず、ログイン中操作は不可 | Pass | `logout-history-bfcache.spec.ts` で確認済み | `mono-log9-app/e2e/logout-history-bfcache.spec.ts` |
 | TC-003 | E2E | BFCache観測（Chromium） | Chromiumで実行可能 | ログアウト後に戻る/進む操作 | must条件を満たし、navigation type を記録できる | Pass | Firefox/WebKit は必要時追加 | `mono-log9-app/e2e/logout-history-bfcache.spec.ts` |
-| TC-004 | E2E | 実DBガード: RUN_REAL_E2E不足 | real実行を想定 | `RUN_REAL_E2E` なしで real setup を起動 | 開始前に fail-fast 停止 |  |  |  |
+| TC-004 | E2E | 実DBガード: RUN_REAL_E2E不足 | real実行を想定 | `RUN_REAL_E2E` なしで real setup を起動 | 開始前に fail-fast 停止 | Pass | `testDatabaseGuard` の runner flag 不足ケースで fail-fast を確認 | `pnpm exec jest lib/db/__tests__/testDatabaseGuard.test.ts --runInBand` |
 | TC-005 | E2E | 実DBガード: ALLOW不足 | `RUN_REAL_E2E=true` | `ALLOW_DB_WRITE_FOR_TESTS` なしで real setup を起動 | 開始前に fail-fast 停止 | Pass | `Error: [test-db-guard] ALLOW_DB_WRITE_FOR_TESTS=true is required.` を確認 | `mono-log9-app/e2e/setup/ensure-safe-test-db.ts` |
-| TC-006 | E2E | 実DBガード: host不許可 | `RUN_REAL_E2E=true` ほか設定済み | 許可外hostを `DATABASE_URL` に設定して起動 | 開始前に fail-fast 停止 |  |  |  |
-| TC-007 | E2E | 実DBガード: dbName不許可 | `RUN_REAL_E2E=true` ほか設定済み | 許可外dbNameを `DATABASE_URL` に設定して起動 | 開始前に fail-fast 停止 |  |  |  |
-| TC-008 | E2E | 実DBガード: current_database不一致 | DB接続可能 | URL dbName と current_database() を不一致にして起動 | 開始前に fail-fast 停止 |  |  |  |
+| TC-006 | E2E | 実DBガード: host不許可 | `RUN_REAL_E2E=true` ほか設定済み | 許可外hostを `DATABASE_URL` に設定して起動 | 開始前に fail-fast 停止 | Pass | `testDatabaseGuard` の host allowlist 不一致ケースで fail-fast を確認 | `pnpm exec jest lib/db/__tests__/testDatabaseGuard.test.ts --runInBand` |
+| TC-007 | E2E | 実DBガード: dbName不許可 | `RUN_REAL_E2E=true` ほか設定済み | 許可外dbNameを `DATABASE_URL` に設定して起動 | 開始前に fail-fast 停止 | Pass | `testDatabaseGuard` の dbName allowlist 不一致ケースで fail-fast を確認 | `pnpm exec jest lib/db/__tests__/testDatabaseGuard.test.ts --runInBand` |
+| TC-008 | E2E | 実DBガード: current_database不一致 | DB接続可能 | URL dbName と current_database() を不一致にして起動 | 開始前に fail-fast 停止 | Pass | `testDatabaseGuard` の current_database 不一致ケースで fail-fast を確認 | `pnpm exec jest lib/db/__tests__/testDatabaseGuard.test.ts --runInBand` |
 | TC-009 | E2E | 実DB realスモーク（非ログイン） | 実DBガード条件を満たす | 未ログイン画面表示を確認 | Auth.js未ログイン画面が表示される | Pass | `major-flow.real.spec.ts` の smoke ケースで確認 | `mono-log9-app/e2e/major-flow.real.spec.ts` |
-| TC-010 | 手動 | Google OAuthログイン導線 | OAuth設定済み | 通常ブラウザでログイン→戻り→ログアウト | ログイン/戻り/ログアウト導線が成立する |  | Playwright対象外 | 手動証跡（画面キャプチャ等） |
+| TC-010 | 手動 | Google OAuthログイン導線 | OAuth設定済み | 通常ブラウザでログイン→戻り→ログアウト | ログイン/戻り/ログアウト導線が成立する | Pass | Playwright対象外。手動確認で成立を確認 | 手動確認（2026-02-26） |
