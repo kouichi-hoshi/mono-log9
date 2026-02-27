@@ -34,6 +34,14 @@ export type ActionResult<T> =
   | { ok: false; error: ActionError };
 
 function toErrorResult(error: unknown): ActionResult<never> {
+  // stg/Preview のみ: デバッグ用ログ（VERCEL_ENV=preview は Preview デプロイで自動設定）
+  if (process.env.VERCEL_ENV === "preview") {
+    console.error("[postActions] caught error:", error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && error.cause) {
+      console.error("[postActions] cause:", error.cause);
+    }
+  }
+
   if (isPostRepositoryError(error)) {
     return {
       ok: false,
