@@ -174,7 +174,7 @@ export default function PostCard({
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={handleFavorite}>
           <Star
             className={cn(
