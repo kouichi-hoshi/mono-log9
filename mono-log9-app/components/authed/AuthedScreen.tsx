@@ -1357,7 +1357,7 @@ export default function AuthedScreen({
     <div className="min-h-screen pb-4 md:pb-12 text-foreground bg-blue-50">
       <header className="sticky top-0 mb-6 md:mb-12">
         <h1 className="sr-only">{APP_NAME}</h1>
-        <div className="border-b-2 bg-white/80 px-4 py-4">
+        <div className="px-4 py-4 border-b-2 bg-white/80">
           <div className="mx-auto w-full max-w-6xl">
             <Container1
               user={user}
@@ -1371,7 +1371,7 @@ export default function AuthedScreen({
           </div>
         </div>
       </header>
-      <div className="rounded-xl p-4 mx-4 md:mx-auto md:max-w-8/10 md:p-12 lg:p-18 xl:max-w-4xl bg-white">
+      <div className="mx-4 p-4 md:mx-auto md:max-w-8/10 md:p-12 lg:p-18 xl:max-w-4xl rounded-xl bg-white">
         {!isTrashView && (
           <section>
             <HeaderPostArea
@@ -1381,7 +1381,7 @@ export default function AuthedScreen({
               onMemoDraftChange={setMemoDraft}
               onMemoSaveStub={handleMemoSaveStub}
             />
-            <hr className="border border-foreground/10 my-4 md:my-12" />
+            <hr className="my-4 md:my-12 border border-foreground/10" />
           </section>
         )}
         <main>

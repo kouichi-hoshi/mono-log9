@@ -15,7 +15,7 @@ export default function UnauthScreen({
   callbackUrl,
 }: UnauthScreenProps) {
   return (
-    <div className="bg-background text-foreground min-h-screen flex flex-col justify-center px-4 w-fit mx-auto lg:text-center">
+    <div className="flex min-h-screen w-fit flex-col justify-center px-4 mx-auto text-foreground bg-background lg:text-center">
       <div className="flex flex-col gap-8">
         <UnauthHeader />
         <main className="space-y-8">
