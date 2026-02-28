@@ -49,7 +49,7 @@ export default function LoginDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full sm:w-auto">ログイン</Button>
+        <Button>ログイン</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

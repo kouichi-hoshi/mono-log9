@@ -1,7 +1,7 @@
 export default function WelcomeContent() {
   return (
     <article className="space-y-6">
-      <h2 className="text-xl font-semibold">
+      <h2 className="text-2xl font-semibold">
         メモとノートをまとめて管理しましょう
       </h2>
       <div className="space-y-3">
@@ -16,7 +16,7 @@ export default function WelcomeContent() {
       <div className="space-y-3">
         <h3 className="text-base font-semibold">免責事項</h3>
         <p className="text-sm leading-7 text-foreground/80">
-          このアプリは予告なく変更・削除される場合があります。アプリのご利用に際しては、すべて利用者の責任においてご利用ください。
+          このアプリは予告なく変更・削除される場合があります。<br />アプリのご利用に際しては、すべて利用者の責任においてご利用ください。
         </p>
       </div>
     </article>

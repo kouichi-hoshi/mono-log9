@@ -10,7 +10,7 @@ export default function LinkCluster() {
   return (
     <section className="space-y-3">
       <h3 className="sr-only">Link</h3>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 w-fit lg:mx-auto">
         <a
           className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border border-foreground/10 transition hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
           href="https://github.com/kouichi-hoshi"

@@ -1354,8 +1354,8 @@ export default function AuthedScreen({
   );
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0">
+    <div className="min-h-screen pb-4 md:pb-12 text-foreground bg-blue-50">
+      <header className="sticky top-0 mb-6 md:mb-12">
         <h1 className="sr-only">{APP_NAME}</h1>
         <div className="border-b-2 bg-white/80 px-4 py-4">
           <div className="mx-auto w-full max-w-6xl">
@@ -1371,57 +1371,60 @@ export default function AuthedScreen({
           </div>
         </div>
       </header>
-      {!isTrashView && (
-        <section className="mx-auto w-full max-w-4xl px-4 py-4 md:px-6">
-          <HeaderPostArea
-            viewMode={mode}
-            onNoteComposeClick={handleOpenNoteCreate}
-            memoDraft={memoDraft}
-            onMemoDraftChange={setMemoDraft}
-            onMemoSaveStub={handleMemoSaveStub}
-          />
-        </section>
-      )}
-      <main className="mx-auto w-full max-w-4xl px-4 py-6 md:px-6 md:py-10">
-        <article>
-          <Container2
-            mode={mode}
-            isTrashView={isTrashView}
-            favoriteOnly={favoriteOnly}
-            posts={posts}
-            trashPosts={trashPosts}
-            isInitialLoading={isInitialLoading}
-            isNextPageLoading={isNextPageLoading}
-            hasNextPage={Boolean(listQuery.hasNextPage)}
-            initialErrorMessage={initialErrorMessage}
-            nextPageErrorMessage={nextPageErrorMessage}
-            onRetryInitialLoad={() => {
-              void listQuery.refetch();
-            }}
-            onRetryNextPageLoad={() => {
-              void listQuery.fetchNextPage();
-            }}
-            loadMoreSentinelRef={loadMoreSentinelRef}
-            onFavoriteToggle={handleFavoriteFilterToggle}
-            onToggleFavorite={handleToggleFavorite}
-            onMoveToTrash={handleMoveToTrash}
-            onEdit={handleEdit}
-            editingMemoPostId={editingMemoPostId}
-            editingMemoValue={editingMemoValue}
-            onMemoEditValueChange={setEditingMemoValue}
-            onCancelMemoEdit={handleMemoEditCancel}
-            onSaveMemoEditStub={handleMemoEditSaveStub}
-            selectedTrashPostIds={selectedTrashPostIds}
-            onToggleTrashPostSelection={handleToggleTrashPostSelection}
-            onSelectAllVisibleTrashPosts={handleSelectAllVisibleTrashPosts}
-            onClearTrashPostSelection={handleClearTrashPostSelection}
-            onRequestDeleteSelectedTrashPosts={handleRequestDeleteSelectedTrashPosts}
-            onRequestEmptyTrash={handleRequestEmptyTrash}
-            onRestoreTrashPostStub={handleRestoreTrashPostStub}
-            onPermanentDeleteTrashPostStub={handlePermanentDeleteTrashPost}
-          />
-        </article>
-      </main>
+      <div className="rounded-xl p-4 mx-4 md:mx-auto md:max-w-8/10 md:p-12 lg:p-18 xl:max-w-4xl bg-white">
+        {!isTrashView && (
+          <section>
+            <HeaderPostArea
+              viewMode={mode}
+              onNoteComposeClick={handleOpenNoteCreate}
+              memoDraft={memoDraft}
+              onMemoDraftChange={setMemoDraft}
+              onMemoSaveStub={handleMemoSaveStub}
+            />
+            <hr className="border border-foreground/10 my-4 md:my-12" />
+          </section>
+        )}
+        <main>
+          <article>
+            <Container2
+              mode={mode}
+              isTrashView={isTrashView}
+              favoriteOnly={favoriteOnly}
+              posts={posts}
+              trashPosts={trashPosts}
+              isInitialLoading={isInitialLoading}
+              isNextPageLoading={isNextPageLoading}
+              hasNextPage={Boolean(listQuery.hasNextPage)}
+              initialErrorMessage={initialErrorMessage}
+              nextPageErrorMessage={nextPageErrorMessage}
+              onRetryInitialLoad={() => {
+                void listQuery.refetch();
+              }}
+              onRetryNextPageLoad={() => {
+                void listQuery.fetchNextPage();
+              }}
+              loadMoreSentinelRef={loadMoreSentinelRef}
+              onFavoriteToggle={handleFavoriteFilterToggle}
+              onToggleFavorite={handleToggleFavorite}
+              onMoveToTrash={handleMoveToTrash}
+              onEdit={handleEdit}
+              editingMemoPostId={editingMemoPostId}
+              editingMemoValue={editingMemoValue}
+              onMemoEditValueChange={setEditingMemoValue}
+              onCancelMemoEdit={handleMemoEditCancel}
+              onSaveMemoEditStub={handleMemoEditSaveStub}
+              selectedTrashPostIds={selectedTrashPostIds}
+              onToggleTrashPostSelection={handleToggleTrashPostSelection}
+              onSelectAllVisibleTrashPosts={handleSelectAllVisibleTrashPosts}
+              onClearTrashPostSelection={handleClearTrashPostSelection}
+              onRequestDeleteSelectedTrashPosts={handleRequestDeleteSelectedTrashPosts}
+              onRequestEmptyTrash={handleRequestEmptyTrash}
+              onRestoreTrashPostStub={handleRestoreTrashPostStub}
+              onPermanentDeleteTrashPostStub={handlePermanentDeleteTrashPost}
+            />
+          </article>
+        </main>
+      </div>
       <NoteComposerModal
         open={isNoteModalOpen}
         onOpenChange={handleNoteModalOpenChange}

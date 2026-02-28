@@ -2,7 +2,8 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  /* --foreground: #171717; */
+  --foreground: var(--color-blue-950);
   --quote-border: #64748b;
 }
 

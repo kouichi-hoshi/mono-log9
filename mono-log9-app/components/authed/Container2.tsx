@@ -89,7 +89,7 @@ export default function Container2({
   return (
     <section className="space-y-4">
       <div className="flex items-center gap-2">
-        <h2 className="text-lg font-semibold">{isTrashView ? "ごみ箱" : mode === "memo" ? "メモ" : "ノート"}</h2>
+        <h2 className="text-2xl font-semibold">{isTrashView ? "ごみ箱" : mode === "memo" ? "メモ" : "ノート"}</h2>
         {!isTrashView && (
           <Button
             type="button"
