@@ -56,7 +56,6 @@ body {
   line-height: 1.5;
 }
 
-.tiptap p,
 .md-content p {
   margin: 0.5rem 0;
 }
@@ -96,6 +95,10 @@ body {
   color: #2563eb;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.md-content a {
+  cursor: pointer;
 }
 
 .tiptap a:hover,

@@ -22,7 +22,7 @@ export default function TrashBulkActions({
 }: TrashBulkActionsProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-foreground/10 p-3">
-      <label className="mr-auto flex items-center gap-2 text-sm">
+      <label className="mr-auto flex cursor-pointer items-center gap-2 text-sm transition-colors hover:text-foreground/90">
         <Checkbox
           checked={hasSelection}
           disabled={!hasTrashPosts}

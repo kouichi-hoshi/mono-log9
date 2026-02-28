@@ -12,7 +12,7 @@ export default function LinkCluster() {
       <h3 className="sr-only">Link</h3>
       <div className="flex items-center gap-3">
         <a
-          className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-foreground/10 transition hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+          className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border border-foreground/10 transition hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
           href="https://github.com/kouichi-hoshi"
           aria-label="GitHub"
           target="_blank"
@@ -21,7 +21,7 @@ export default function LinkCluster() {
           <Github className="h-5 w-5" />
         </a>
         <a
-          className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-foreground/10 transition hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+          className="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border border-foreground/10 transition hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
           href="https://x.com/stella_d_tweet"
           aria-label="X"
           target="_blank"

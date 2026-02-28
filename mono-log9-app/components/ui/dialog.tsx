@@ -40,7 +40,7 @@ const DialogContent = React.forwardRef<
       {children}
       {showCloseButton && (
         <DialogClose
-          className="absolute right-4 top-4 rounded-sm p-1 text-foreground/60 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+          className="absolute right-4 top-4 cursor-pointer rounded-sm p-1 text-foreground/60 transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
           aria-label="閉じる"
         >
           <X className="h-4 w-4" />

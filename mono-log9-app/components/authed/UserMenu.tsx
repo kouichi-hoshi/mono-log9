@@ -22,7 +22,7 @@ export default function UserMenu({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-foreground/20 bg-foreground/5 text-sm font-semibold"
+          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-foreground/20 bg-foreground/5 text-sm font-semibold transition-colors hover:bg-foreground/10 hover:border-foreground/30"
           aria-label="ユーザーメニュー"
           aria-controls={USER_MENU_POPOVER_CONTENT_ID}
         >

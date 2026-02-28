@@ -28,7 +28,10 @@ export default function TrashPostCard({
       className="rounded-lg border border-foreground/10 p-4 shadow-sm"
     >
       <div className="mb-2 flex items-center gap-3 text-xs text-foreground/60">
-        <label htmlFor={checkboxId} className="inline-flex items-center gap-2 text-sm text-foreground">
+        <label
+          htmlFor={checkboxId}
+          className="inline-flex cursor-pointer items-center gap-2 text-sm text-foreground transition-colors hover:text-foreground/90"
+        >
           <Checkbox
             id={checkboxId}
             checked={checked}

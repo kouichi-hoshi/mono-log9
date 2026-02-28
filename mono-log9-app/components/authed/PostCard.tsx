@@ -74,7 +74,7 @@ function renderMemoContent(contentText: string): React.ReactNode[] {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 underline underline-offset-2 hover:text-blue-700"
+          className="cursor-pointer text-blue-600 underline underline-offset-2 hover:text-blue-700"
         >
           {core}
         </a>
