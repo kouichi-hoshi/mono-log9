@@ -1,5 +1,8 @@
 "use client";
 
+import * as React from "react";
+
+import AboutAppDialog from "@/components/authed/AboutAppDialog";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { AuthedUser } from "@/components/authed/stubs";
@@ -17,9 +20,18 @@ export default function UserMenu({
   onLogout,
   isLogoutSubmitting = false,
 }: UserMenuProps) {
+  const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
+  const [isAboutOpen, setIsAboutOpen] = React.useState(false);
+
+  const handleAboutClick = React.useCallback(() => {
+    setIsPopoverOpen(false);
+    setIsAboutOpen(true);
+  }, []);
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
+    <>
+      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+        <PopoverTrigger asChild>
         <button
           type="button"
           className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-foreground/20 bg-foreground/5 text-sm font-semibold transition-colors hover:bg-foreground/10 hover:border-foreground/30"
@@ -47,6 +59,15 @@ export default function UserMenu({
           </div>
           <Button
             type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start"
+            onClick={handleAboutClick}
+          >
+            このアプリについて
+          </Button>
+          <Button
+            type="button"
             variant="outline"
             size="sm"
             className="w-full"
@@ -60,5 +81,7 @@ export default function UserMenu({
         </div>
       </PopoverContent>
     </Popover>
+      <AboutAppDialog open={isAboutOpen} onOpenChange={setIsAboutOpen} />
+    </>
   );
 }
