@@ -2381,6 +2381,56 @@ describe("AuthedScreen", () => {
     });
   });
 
+  it("closes noteComposer edit and replaces URL when target post is missing", async () => {
+    getNavigationMock().__mockNavigation.setQuery("view=note&noteComposer=edit:missing-post");
+
+    renderAuthedScreen();
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("対象が見つかりません");
+    });
+    expect(getNavigationMock().__mockNavigation.getReplaceMock()).toHaveBeenLastCalledWith(
+      "/?view=note"
+    );
+    expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
+  });
+
+  it("does not reapply consumed restored note draft when reopening note composer", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note&noteComposer=create");
+    window.sessionStorage.setItem(
+      "mono-log:relogin-draft:v1",
+      JSON.stringify({
+        version: 1,
+        savedAt: Date.now(),
+        query: "view=note&noteComposer=create",
+        memoDraft: "",
+        editingMemoPostId: null,
+        editingMemoValue: "",
+        noteDraft: {
+          title: "復元タイトル",
+          contentJson: createDocFromPlainText("復元本文"),
+          plainText: "復元本文",
+        },
+      })
+    );
+
+    renderAuthedScreen({ authMode: "authjs" });
+
+    const titleInput = await screen.findByLabelText("ノートタイトル");
+    expect(titleInput).toHaveValue("復元タイトル");
+
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+    await waitFor(() => {
+      expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "ノートを書く" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("ノートタイトル")).toHaveValue("");
+    });
+  });
+
   it("opens login dialog and keeps memo draft on UNAUTHORIZED", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=memo&stubAuth=1");

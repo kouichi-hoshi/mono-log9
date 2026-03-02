@@ -126,12 +126,14 @@ type UseNoteComposerStateInput = {
   effectiveQueryString: string;
   noteComposer: { mode: "none" | "create" | "edit"; postId?: string };
   isNoteModalOpen: boolean;
+  noteModalDirty: boolean;
   visibleItems: PostRecord[];
   restoredNoteDraft: ReloginNoteDraft | null;
   listState: { hasData: boolean; isFetching: boolean };
   findInCachedPostLists: (postId: string) => PostRecord | null;
   closeNoteModalNow: () => void;
   onMissingTarget: (nextQuery: string) => void;
+  onConsumeRestoredDraft: () => void;
 };
 
 type UseNoteComposerStateOutput = {
@@ -140,13 +142,13 @@ type UseNoteComposerStateOutput = {
   noteModalInitialTitle: string;
   noteModalInitialContent: PostContent | null;
   noteModalInitialPlainText: string;
-  consumeRestoredNoteDraft: () => void;
 };
 ```
 
 - 規約
   - 欠損投稿時は `onMissingTarget` を呼び、親で `syncCommittedQuery + router.replace` を実行
   - create/edit初期化シグネチャ管理はhook内で完結
+  - 復元ドラフトの消費タイミングは `onConsumeRestoredDraft` で親状態へ反映する
 
 ## F7-5: `components/authed/usePostsScrollRestoration.ts`
 

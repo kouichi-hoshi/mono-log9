@@ -24,6 +24,7 @@ import NoteComposerModal from "@/components/authed/NoteComposerModal";
 import type { AuthedUser, ViewMode } from "@/components/authed/stubs";
 import type { NoteDraft } from "@/components/authed/types";
 import { useGuardedQueryNavigation } from "@/components/authed/useGuardedQueryNavigation";
+import { useNoteComposerState } from "@/components/authed/useNoteComposerState";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -77,7 +78,7 @@ import {
   restoreScrollPosition,
   saveScrollPosition,
 } from "@/lib/posts/scrollRestoration";
-import type { PostContent, PostRecord } from "@/lib/posts/types";
+import type { PostRecord } from "@/lib/posts/types";
 import { PostsListQueryError, usePostsInfiniteQuery } from "@/lib/posts/usePostsInfiniteQuery";
 import { buildUrlWithStubAuthFromQuery } from "@/lib/stubAuth";
 import { APP_NAME } from "@/lib/appMeta";
@@ -148,14 +149,7 @@ export default function AuthedScreen({
   const [editingMemoValue, setEditingMemoValue] = React.useState("");
   const [editingMemoInitialValue, setEditingMemoInitialValue] = React.useState("");
 
-  const [noteModalMode, setNoteModalMode] = React.useState<"create" | "edit">("create");
-  const [noteModalInitialTitle, setNoteModalInitialTitle] = React.useState("");
-  const [noteModalInitialContent, setNoteModalInitialContent] = React.useState<PostContent | null>(
-    null
-  );
-  const [noteModalInitialPlainText, setNoteModalInitialPlainText] = React.useState("");
   const [noteModalDirty, setNoteModalDirty] = React.useState(false);
-  const [editingNotePostId, setEditingNotePostId] = React.useState<string | null>(null);
   const [selectedTrashPostIds, setSelectedTrashPostIds] = React.useState<Set<string>>(() => new Set());
   const [deleteDialogMode, setDeleteDialogMode] = React.useState<"selected" | "all" | null>(null);
   const [isDeleteSubmitting, setIsDeleteSubmitting] = React.useState(false);
@@ -173,8 +167,6 @@ export default function AuthedScreen({
   const loadMoreSentinelElementRef = React.useRef<HTMLDivElement | null>(null);
   const handledInitialErrorKeyRef = React.useRef<string | null>(null);
   const handledNextPageErrorKeyRef = React.useRef<string | null>(null);
-  const handledMissingNoteComposerRef = React.useRef<string | null>(null);
-  const initializedNoteComposerRef = React.useRef<string | null>(null);
   const skipDiscardConfirmOnNextNoteCloseRef = React.useRef(false);
   const currentListConditionRef = React.useRef<PostsListCondition>(
     normalizePostsListCondition({ view: "memo", favoriteOnly: false })
@@ -193,11 +185,6 @@ export default function AuthedScreen({
   const hasUnsavedEdits = isMemoCreateDirty || isMemoEditDirty || isNoteEditDirty;
 
   const closeNoteModalNow = React.useCallback(() => {
-    setNoteModalMode("create");
-    setNoteModalInitialTitle("");
-    setNoteModalInitialContent(null);
-    setNoteModalInitialPlainText("");
-    setEditingNotePostId(null);
     setNoteModalDirty(false);
   }, []);
 
@@ -583,6 +570,39 @@ export default function AuthedScreen({
     return null;
   }, [queryClient]);
 
+  const handleMissingNoteComposerTarget = React.useCallback((nextQuery: string) => {
+    toast.error("対象が見つかりません");
+    syncCommittedQuery(nextQuery);
+    router.replace(toRootPath(nextQuery));
+  }, [router, syncCommittedQuery]);
+
+  const consumeRestoredNoteDraft = React.useCallback(() => {
+    setRestoredNoteDraft(null);
+  }, []);
+
+  const {
+    noteModalMode,
+    editingNotePostId,
+    noteModalInitialTitle,
+    noteModalInitialContent,
+    noteModalInitialPlainText,
+  } = useNoteComposerState({
+    effectiveQueryString,
+    noteComposer,
+    isNoteModalOpen,
+    noteModalDirty,
+    visibleItems,
+    restoredNoteDraft,
+    listState: {
+      hasData: Boolean(listQuery.data),
+      isFetching: listQuery.isFetching,
+    },
+    findInCachedPostLists,
+    closeNoteModalNow,
+    onMissingTarget: handleMissingNoteComposerTarget,
+    onConsumeRestoredDraft: consumeRestoredNoteDraft,
+  });
+
   const handleFavoriteFilterToggle = React.useCallback(() => {
     const next = buildQueryForFavoriteToggle(effectiveQueryString);
     if (!next.changed) {
@@ -630,108 +650,6 @@ export default function AuthedScreen({
       setSelectedTrashPostIds(new Set());
     }
   }, [isTrashView]);
-
-  React.useEffect(() => {
-    if (!isNoteModalOpen) {
-      if (noteModalDirty) {
-        return;
-      }
-
-      handledMissingNoteComposerRef.current = null;
-      initializedNoteComposerRef.current = null;
-      closeNoteModalNow();
-      return;
-    }
-
-    if (noteComposer.mode === "create") {
-      if (initializedNoteComposerRef.current === "create") {
-        if (restoredNoteDraft && !noteModalDirty) {
-          setNoteModalInitialTitle(restoredNoteDraft.title);
-          setNoteModalInitialContent(restoredNoteDraft.contentJson);
-          setNoteModalInitialPlainText(restoredNoteDraft.plainText);
-          setNoteModalDirty(false);
-          setRestoredNoteDraft(null);
-          return;
-        }
-        return;
-      }
-
-      initializedNoteComposerRef.current = "create";
-      handledMissingNoteComposerRef.current = null;
-      setNoteModalMode("create");
-      setEditingNotePostId(null);
-      setNoteModalInitialTitle(restoredNoteDraft?.title ?? "");
-      setNoteModalInitialContent(restoredNoteDraft?.contentJson ?? null);
-      setNoteModalInitialPlainText(restoredNoteDraft?.plainText ?? "");
-      setNoteModalDirty(false);
-      if (restoredNoteDraft) {
-        setRestoredNoteDraft(null);
-      }
-      return;
-    }
-
-    if (noteComposer.mode !== "edit") {
-      return;
-    }
-
-    const targetPost =
-      visibleItems.find((post) => post.id === noteComposer.postId) ??
-      findInCachedPostLists(noteComposer.postId);
-
-    if (!targetPost && !listQuery.data && listQuery.isFetching) {
-      return;
-    }
-
-    if (
-      !targetPost ||
-      targetPost.mode !== "note" ||
-      typeof targetPost.trashedAt !== "undefined"
-    ) {
-      const signature = `${noteComposer.mode}:${noteComposer.postId}`;
-      if (handledMissingNoteComposerRef.current === signature) {
-        return;
-      }
-
-      handledMissingNoteComposerRef.current = signature;
-      toast.error("対象が見つかりません");
-      const next = buildQueryForNoteComposerClose(effectiveQueryString);
-      syncCommittedQuery(next.nextQuery);
-      router.replace(toRootPath(next.nextQuery));
-      return;
-    }
-
-    const initializedSignature = `edit:${targetPost.id}`;
-    if (initializedNoteComposerRef.current === initializedSignature) {
-      return;
-    }
-
-    initializedNoteComposerRef.current = initializedSignature;
-    handledMissingNoteComposerRef.current = null;
-    setNoteModalMode("edit");
-    setEditingNotePostId(targetPost.id);
-    setNoteModalInitialTitle(restoredNoteDraft?.title ?? targetPost.title ?? "");
-    setNoteModalInitialContent(
-      restoredNoteDraft?.contentJson ?? clonePostContent(targetPost.content)
-    );
-    setNoteModalInitialPlainText(restoredNoteDraft?.plainText ?? targetPost.contentText);
-    setNoteModalDirty(false);
-    if (restoredNoteDraft) {
-      setRestoredNoteDraft(null);
-    }
-  }, [
-    closeNoteModalNow,
-    findInCachedPostLists,
-    isNoteModalOpen,
-    listQuery.data,
-    listQuery.isFetching,
-    noteModalDirty,
-    noteComposer,
-    effectiveQueryString,
-    restoredNoteDraft,
-    router,
-    syncCommittedQuery,
-    visibleItems,
-  ]);
 
   const syncFavoriteInCurrentViewCaches = React.useCallback(
     (updated: PostRecord) => {
@@ -953,11 +871,6 @@ export default function AuthedScreen({
       toast(noteModalMode === "edit" ? "更新しました" : "保存しました");
       setNoteModalDirty(false);
       skipDiscardConfirmOnNextNoteCloseRef.current = true;
-
-      if (noteModalMode === "edit") {
-        setNoteModalMode("create");
-        setEditingNotePostId(null);
-      }
 
       return true;
     },
