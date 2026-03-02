@@ -24,7 +24,9 @@ import NoteComposerModal from "@/components/authed/NoteComposerModal";
 import type { AuthedUser, ViewMode } from "@/components/authed/stubs";
 import type { NoteDraft } from "@/components/authed/types";
 import { useGuardedQueryNavigation } from "@/components/authed/useGuardedQueryNavigation";
+import { useInfiniteLoadMore } from "@/components/authed/useInfiniteLoadMore";
 import { useNoteComposerState } from "@/components/authed/useNoteComposerState";
+import { usePostsScrollRestoration } from "@/components/authed/usePostsScrollRestoration";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,11 +75,7 @@ import {
   postsListQueryKey,
   type PostsListCondition,
 } from "@/lib/posts/queryKeys";
-import {
-  getScrollStorageKey,
-  restoreScrollPosition,
-  saveScrollPosition,
-} from "@/lib/posts/scrollRestoration";
+import { getScrollStorageKey } from "@/lib/posts/scrollRestoration";
 import type { PostRecord } from "@/lib/posts/types";
 import { PostsListQueryError, usePostsInfiniteQuery } from "@/lib/posts/usePostsInfiniteQuery";
 import { buildUrlWithStubAuthFromQuery } from "@/lib/stubAuth";
@@ -159,23 +157,13 @@ export default function AuthedScreen({
   const [liveNoteDraft, setLiveNoteDraft] = React.useState<ReloginNoteDraft | null>(null);
   const [restoredNoteDraft, setRestoredNoteDraft] = React.useState<ReloginNoteDraft | null>(null);
 
-  const [isRestoringScroll, setIsRestoringScroll] = React.useState(false);
-  const restoredScrollKeyRef = React.useRef<string | null>(null);
-  const skipCleanupScrollKeyRef = React.useRef<string | null>(null);
-  const hasUserScrolledRef = React.useRef(false);
-  const isProgrammaticScrollRef = React.useRef(false);
-  const loadMoreSentinelElementRef = React.useRef<HTMLDivElement | null>(null);
   const handledInitialErrorKeyRef = React.useRef<string | null>(null);
   const handledNextPageErrorKeyRef = React.useRef<string | null>(null);
   const skipDiscardConfirmOnNextNoteCloseRef = React.useRef(false);
-  const currentListConditionRef = React.useRef<PostsListCondition>(
-    normalizePostsListCondition({ view: "memo", favoriteOnly: false })
-  );
+  const saveCurrentScrollRef = React.useRef<() => void>(() => {});
 
   const saveCurrentScroll = React.useCallback(() => {
-    const currentListCondition = currentListConditionRef.current;
-    skipCleanupScrollKeyRef.current = getScrollStorageKey(currentListCondition);
-    saveScrollPosition(currentListCondition);
+    saveCurrentScrollRef.current();
   }, []);
 
   const isMemoCreateDirty = memoDraft.length > 0;
@@ -280,11 +268,28 @@ export default function AuthedScreen({
   const isInitialLoading = !listQuery.data && (listQuery.isLoading || listQuery.isFetching);
   const isNextPageLoading = listQuery.isFetchingNextPage;
   const scrollStorageKey = React.useMemo(() => getScrollStorageKey(listCondition), [listCondition]);
+  const { isRestoringScroll, saveCurrentScroll: saveCurrentScrollFromHook } =
+    usePostsScrollRestoration({
+      listCondition,
+      scrollStorageKey,
+      listReady: Boolean(listQuery.data),
+      isQueryNormalizing: rawNormalizedQuery.changed,
+    });
+  const { loadMoreSentinelRef } = useInfiniteLoadMore({
+    hasNextPage: Boolean(listQuery.hasNextPage),
+    isFetchingNextPage: listQuery.isFetchingNextPage,
+    isRestoringScroll,
+    hasNextPageError: Boolean(nextPageErrorMessage),
+    isQueryNormalizing: rawNormalizedQuery.changed,
+    fetchNextPage: listQuery.fetchNextPage,
+  });
 
   React.useLayoutEffect(() => {
-    // Keep latest condition before paint so first user action uses the right scroll key.
-    currentListConditionRef.current = listCondition;
-  }, [listCondition]);
+    saveCurrentScrollRef.current = saveCurrentScrollFromHook;
+    return () => {
+      saveCurrentScrollRef.current = () => {};
+    };
+  }, [saveCurrentScrollFromHook]);
 
   const handleLogout = React.useCallback(async () => {
     if (isLogoutSubmitting) {
@@ -362,62 +367,6 @@ export default function AuthedScreen({
   }, [executeAction, rawNormalizedQuery.changed, rawNormalizedQuery.nextQuery]);
 
   React.useEffect(() => {
-    restoredScrollKeyRef.current = null;
-    hasUserScrolledRef.current = false;
-  }, [scrollStorageKey]);
-
-  React.useEffect(() => {
-    if (rawNormalizedQuery.changed || !listQuery.data) {
-      return;
-    }
-
-    if (restoredScrollKeyRef.current === scrollStorageKey) {
-      return;
-    }
-
-    isProgrammaticScrollRef.current = true;
-    setIsRestoringScroll(true);
-
-    return restoreScrollPosition(listCondition, () => {
-      restoredScrollKeyRef.current = scrollStorageKey;
-      hasUserScrolledRef.current = false;
-      setIsRestoringScroll(false);
-      window.requestAnimationFrame(() => {
-        isProgrammaticScrollRef.current = false;
-      });
-    });
-  }, [listCondition, listQuery.data, rawNormalizedQuery.changed, scrollStorageKey]);
-
-  React.useEffect(() => {
-    const handleScroll = () => {
-      if (isRestoringScroll || isProgrammaticScrollRef.current) {
-        return;
-      }
-
-      hasUserScrolledRef.current = true;
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, [isRestoringScroll]);
-
-  React.useEffect(() => {
-    return () => {
-      if (skipCleanupScrollKeyRef.current === scrollStorageKey) {
-        skipCleanupScrollKeyRef.current = null;
-        return;
-      }
-
-      saveScrollPosition(listCondition);
-      if (hasUserScrolledRef.current) {
-        hasUserScrolledRef.current = false;
-      }
-    };
-  }, [listCondition, scrollStorageKey]);
-
-  React.useEffect(() => {
     if (!listQuery.isError || listQuery.data) {
       handledInitialErrorKeyRef.current = null;
       return;
@@ -455,53 +404,6 @@ export default function AuthedScreen({
     listQuery.error,
     listQuery.isFetchNextPageError,
     nextPageErrorMessage,
-  ]);
-
-  const loadMoreSentinelRef = React.useCallback((element: HTMLDivElement | null) => {
-    loadMoreSentinelElementRef.current = element;
-  }, []);
-
-  React.useEffect(() => {
-    const target = loadMoreSentinelElementRef.current;
-
-    if (
-      !target ||
-      !listQuery.hasNextPage ||
-      isRestoringScroll ||
-      rawNormalizedQuery.changed ||
-      Boolean(nextPageErrorMessage)
-    ) {
-      return;
-    }
-
-    const observer = new IntersectionObserver((entries) => {
-      const shouldLoad = entries.some((entry) => entry.isIntersecting);
-      if (
-        !shouldLoad ||
-        listQuery.isFetchingNextPage ||
-        !listQuery.hasNextPage ||
-        isRestoringScroll ||
-        Boolean(nextPageErrorMessage)
-      ) {
-        return;
-      }
-
-      void listQuery.fetchNextPage();
-    });
-
-    observer.observe(target);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [
-    isRestoringScroll,
-    listQuery,
-    listQuery.fetchNextPage,
-    listQuery.hasNextPage,
-    listQuery.isFetchingNextPage,
-    nextPageErrorMessage,
-    rawNormalizedQuery.changed,
   ]);
 
   const updateCurrentQueryItems = React.useCallback(
