@@ -60,11 +60,11 @@ describe("sanitizeRichHtml", () => {
     expect(links[3]?.getAttribute("rel")).toBe("noopener noreferrer");
   });
 
-  it("fails closed when purifier cannot be resolved", async () => {
+  it("fails closed when DOMPurify(window) result does not provide sanitize", async () => {
     jest.resetModules();
     jest.doMock("dompurify", () => ({
       __esModule: true,
-      default: {},
+      default: () => ({}),
     }));
 
     try {
@@ -72,6 +72,7 @@ describe("sanitizeRichHtml", () => {
         const { sanitizeRichHtml: isolatedSanitizeRichHtml } = await import("@/lib/sanitizeRichHtml");
         const html = '<img src="x" onerror="alert(1)"><script>alert(1)</script>';
 
+        expect(() => isolatedSanitizeRichHtml(html)).not.toThrow();
         expect(isolatedSanitizeRichHtml(html)).toBe("");
       });
     } finally {
