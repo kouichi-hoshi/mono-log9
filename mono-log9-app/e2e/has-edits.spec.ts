@@ -49,6 +49,7 @@ test("hasEdits: 戻る操作で『編集を続ける』を選ぶと編集中状�
 
   await page.goBack();
   await expect(page.getByText("編集中の内容があります。破棄して続行しますか？")).toBeVisible();
+  await expect(page.getByLabel("ノートタイトル")).toHaveValue("戻る確認テスト");
   await page.getByRole("button", { name: "編集を続ける" }).click();
 
   await expect(page).toHaveURL(/view=note.*noteComposer=create/);
@@ -65,6 +66,7 @@ test("hasEdits: 戻る操作で『破棄して続行』を選ぶと遷移する"
 
   await page.goBack();
   await expect(page.getByText("編集中の内容があります。破棄して続行しますか？")).toBeVisible();
+  await expect(page.getByLabel("ノートタイトル")).toHaveValue("戻る破棄テスト");
   await page.getByRole("button", { name: "破棄して続行" }).click();
 
   await expect(page).toHaveURL(/view=note/);
@@ -81,6 +83,8 @@ test("hasEdits: 進む操作でも離脱確認し、破棄で遷移する", asyn
   await page.getByLabel("メモ本文").fill("進む確認");
   await page.goForward();
   await expect(page.getByText("編集中の内容があります。破棄して続行しますか？")).toBeVisible();
+  await expect(page.getByLabel("メモ本文")).toHaveValue("進む確認");
+  await expect(page.getByRole("button", { name: "ノートを書く" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "破棄して続行" }).click();
   await expect(page).toHaveURL(/view=note/);
