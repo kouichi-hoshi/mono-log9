@@ -2165,6 +2165,8 @@ describe("AuthedScreen", () => {
     await user.click(screen.getByRole("button", { name: "ノート" }));
     expect(screen.getByText("編集中の内容があります。破棄して続行しますか？")).toBeInTheDocument();
     expect(getNavigationMock().__mockNavigation.getPushMock()).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { level: 2, name: "ノート" })).not.toBeInTheDocument();
+    expect(input).toHaveValue("変更したメモ");
 
     await user.click(screen.getByRole("button", { name: "編集を続ける" }));
     expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
@@ -2253,6 +2255,8 @@ describe("AuthedScreen", () => {
     await user.click(screen.getByRole("button", { name: "お気に入り", pressed: false }));
     expect(screen.getByText("編集中の内容があります。破棄して続行しますか？")).toBeInTheDocument();
     expect(getNavigationMock().__mockNavigation.getPushMock()).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "お気に入り", pressed: false })).toBeInTheDocument();
+    expect(input).toHaveValue("お気に入り切替前の編集");
 
     await user.click(screen.getByRole("button", { name: "編集を続ける" }));
     expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
