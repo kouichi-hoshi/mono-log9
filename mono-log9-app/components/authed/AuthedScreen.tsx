@@ -54,6 +54,13 @@ import {
 import type { AuthMode } from "@/lib/auth/types";
 import { clonePostContent, createDocFromPlainText } from "@/lib/posts/content";
 import { formatJstDateTime, parseDisplayJstDateTimeToEpochMs } from "@/lib/posts/dateTime";
+import {
+  applyDeletePostsMutation,
+  applyFavoriteMutation,
+  applyMoveToTrashMutation,
+  applyRestoreFromTrashMutation,
+  upsertForCurrentView,
+} from "@/lib/posts/cacheMutations";
 import { isMemoDirty } from "@/lib/posts/hasEdits";
 import {
   flattenInfiniteItems,
@@ -65,13 +72,12 @@ import {
   postsListQueryKey,
   type PostsListCondition,
 } from "@/lib/posts/queryKeys";
-import { comparePostsByCreatedAtDesc, comparePostsByTrashedAtDesc } from "@/lib/posts/sort";
 import {
   getScrollStorageKey,
   restoreScrollPosition,
   saveScrollPosition,
 } from "@/lib/posts/scrollRestoration";
-import type { PostContent, PostRecord, PostView } from "@/lib/posts/types";
+import type { PostContent, PostRecord } from "@/lib/posts/types";
 import { PostsListQueryError, usePostsInfiniteQuery } from "@/lib/posts/usePostsInfiniteQuery";
 import { buildUrlWithStubAuthFromQuery } from "@/lib/stubAuth";
 import { APP_NAME } from "@/lib/appMeta";
@@ -91,34 +97,6 @@ function toErrorMessage(error: unknown): string | null {
   }
 
   return null;
-}
-
-function upsertForCurrentView(
-  items: PostRecord[],
-  updated: PostRecord,
-  view: PostView,
-  favoriteOnly: boolean
-): PostRecord[] {
-  if (view === "trash") {
-    if (typeof updated.trashedAt === "undefined") {
-      return items.filter((item) => item.id !== updated.id);
-    }
-
-    return [updated, ...items.filter((item) => item.id !== updated.id)].sort(
-      comparePostsByTrashedAtDesc
-    );
-  }
-
-  const isVisibleModePost = updated.mode === view && typeof updated.trashedAt === "undefined";
-  const canDisplay = isVisibleModePost && (!favoriteOnly || updated.favorite);
-
-  if (!canDisplay) {
-    return items.filter((item) => item.id !== updated.id);
-  }
-
-  return [updated, ...items.filter((item) => item.id !== updated.id)].sort(
-    comparePostsByCreatedAtDesc
-  );
 }
 
 function formatNowDate(): string {
@@ -775,11 +753,12 @@ export default function AuthedScreen({
             return current;
           }
 
-          const nextItems = upsertForCurrentView(
-            flattenInfiniteItems(current),
-            updated,
-            condition.view,
-            condition.favoriteOnly
+          const nextItems = applyFavoriteMutation(
+            {
+              condition,
+              items: flattenInfiniteItems(current),
+            },
+            updated
           );
           return rebuildInfiniteData(current, nextItems);
         });
@@ -864,14 +843,20 @@ export default function AuthedScreen({
   const upsertPostInVisibleList = React.useCallback(
     (updated: PostRecord) => {
       const changed = updateCurrentQueryItems((items) =>
-        upsertForCurrentView(items, updated, normalizedQuery.state.view, favoriteOnly)
+        upsertForCurrentView(
+          {
+            condition: listCondition,
+            items,
+          },
+          updated
+        )
       );
 
       if (!changed) {
         void queryClient.invalidateQueries({ queryKey: queryKey, exact: true });
       }
     },
-    [favoriteOnly, normalizedQuery.state.view, queryClient, queryKey, updateCurrentQueryItems]
+    [listCondition, queryClient, queryKey, updateCurrentQueryItems]
   );
 
   const removePostsFromAllCaches = React.useCallback(
@@ -880,8 +865,15 @@ export default function AuthedScreen({
         return;
       }
 
-      const removeSet = new Set(postIds);
-      updateAllCachedPostLists((_, items) => items.filter((post) => !removeSet.has(post.id)));
+      updateAllCachedPostLists((condition, items) =>
+        applyDeletePostsMutation(
+          {
+            condition,
+            items,
+          },
+          postIds
+        )
+      );
     },
     [updateAllCachedPostLists]
   );
@@ -1141,19 +1133,18 @@ export default function AuthedScreen({
           }
         : null;
 
-      updateAllCachedPostLists((condition, items) => {
-        if (condition.view === "trash") {
-          if (!movedPost) {
-            return items;
+      updateAllCachedPostLists((condition, items) =>
+        applyMoveToTrashMutation(
+          {
+            condition,
+            items,
+          },
+          {
+            postId,
+            movedPost,
           }
-
-          return [movedPost, ...items.filter((post) => post.id !== postId)].sort(
-            comparePostsByTrashedAtDesc
-          );
-        }
-
-        return items.filter((post) => post.id !== postId);
-      });
+        )
+      );
 
       if (editingMemoPostId === postId) {
         setEditingMemoPostId(null);
@@ -1183,24 +1174,18 @@ export default function AuthedScreen({
           }
         : null;
 
-      updateAllCachedPostLists((condition, items) => {
-        if (condition.view === "trash") {
-          return items.filter((post) => post.id !== postId);
-        }
-
-        if (!restoredPost || restoredPost.mode !== condition.view) {
-          return items.filter((post) => post.id !== postId);
-        }
-
-        const shouldShow = !condition.favoriteOnly || restoredPost.favorite;
-        if (!shouldShow) {
-          return items.filter((post) => post.id !== postId);
-        }
-
-        return [restoredPost, ...items.filter((post) => post.id !== postId)].sort(
-          comparePostsByCreatedAtDesc
-        );
-      });
+      updateAllCachedPostLists((condition, items) =>
+        applyRestoreFromTrashMutation(
+          {
+            condition,
+            items,
+          },
+          {
+            postId,
+            restoredPost,
+          }
+        )
+      );
       setSelectedTrashPostIds((current) => {
         const next = new Set(current);
         next.delete(postId);
