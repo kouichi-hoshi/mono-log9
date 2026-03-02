@@ -19,24 +19,16 @@ import {
 import ControlledLoginDialog from "@/components/auth/ControlledLoginDialog";
 import Container1 from "@/components/authed/Container1";
 import Container2 from "@/components/authed/Container2";
+import DiscardConfirmDialog from "@/components/authed/DiscardConfirmDialog";
 import HeaderPostArea from "@/components/authed/HeaderPostArea";
 import NoteComposerModal from "@/components/authed/NoteComposerModal";
+import TrashDeleteDialog from "@/components/authed/TrashDeleteDialog";
 import type { AuthedUser, ViewMode } from "@/components/authed/stubs";
 import type { NoteDraft } from "@/components/authed/types";
 import { useGuardedQueryNavigation } from "@/components/authed/useGuardedQueryNavigation";
 import { useInfiniteLoadMore } from "@/components/authed/useInfiniteLoadMore";
 import { useNoteComposerState } from "@/components/authed/useNoteComposerState";
 import { usePostsScrollRestoration } from "@/components/authed/usePostsScrollRestoration";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import {
   buildQueryForFavoriteToggle,
   buildQueryForNoteComposerClose,
@@ -1121,46 +1113,22 @@ export default function AuthedScreen({
         callbackUrl={loginCallbackUrl}
         onBeforeAuthRedirect={persistReloginDraft}
       />
-      <AlertDialog open={isDiscardDialogOpen} onOpenChange={handleDiscardDialogOpenChange}>
-        <AlertDialogContent className="z-70">
-          <AlertDialogHeader>
-            <AlertDialogTitle>編集中の内容があります。破棄して続行しますか？</AlertDialogTitle>
-            <AlertDialogDescription className="sr-only">
-              編集中の内容を破棄して続行するか確認します
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>編集を続ける</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDiscardAndContinue}>破棄して続行</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog open={deleteDialogMode !== null} onOpenChange={handleDeleteDialogOpenChange}>
-        <AlertDialogContent className="z-70">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {deleteDialogMode === "selected"
-                ? `${selectedTrashPostIds.size}件の投稿を完全に削除しますか?`
-                : "ごみ箱内のすべての投稿を完全に削除しますか?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteDialogErrorMessage ?? "この操作は取り消せません"}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleteSubmitting}>キャンセル</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isDeleteSubmitting}
-              onClick={(event) => {
-                event.preventDefault();
-                void handleConfirmDelete();
-              }}
-            >
-              {isDeleteSubmitting ? "削除中..." : "削除する"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DiscardConfirmDialog
+        open={isDiscardDialogOpen}
+        onOpenChange={handleDiscardDialogOpenChange}
+        onConfirm={handleDiscardAndContinue}
+      />
+      <TrashDeleteDialog
+        open={deleteDialogMode !== null}
+        mode={deleteDialogMode}
+        selectedCount={selectedTrashPostIds.size}
+        submitting={isDeleteSubmitting}
+        errorMessage={deleteDialogErrorMessage}
+        onOpenChange={handleDeleteDialogOpenChange}
+        onConfirm={() => {
+          void handleConfirmDelete();
+        }}
+      />
       <footer className="hidden">© {APP_NAME}</footer>
     </div>
   );
