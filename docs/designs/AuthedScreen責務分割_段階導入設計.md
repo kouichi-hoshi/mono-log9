@@ -1,5 +1,5 @@
 ---
-title: AuthedScreen分割方針_設計
+title: AuthedScreen責務分割_段階導入設計
 source:
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/manage/作業計画書.md
   - /Users/kouichi/project/my_project/mono-log/mono-log9/docs/specs/仕様書 投稿編集・離脱確認.md
