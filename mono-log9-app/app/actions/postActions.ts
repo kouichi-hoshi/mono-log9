@@ -1,8 +1,14 @@
 "use server";
 
+import { headers } from "next/headers";
+
 import { ensureActorUserFromSession } from "@/lib/auth/actorUser";
 import { getStubPostsEnabled } from "@/lib/env";
-import { isPostRepositoryError, type PostErrorCode } from "@/lib/posts/errors";
+import {
+  isPostRepositoryError,
+  PostRepositoryError,
+  type PostErrorCode,
+} from "@/lib/posts/errors";
 import {
   toValidatedListPostsInput,
   toValidatedCreatePostDto,
@@ -33,6 +39,10 @@ export type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: ActionError };
 
+const E2E_SCENARIO_HEADER = "x-e2e-scenario";
+const E2E_LIST_INITIAL_FAIL_ONCE = "list-initial-fail-once";
+const consumedE2EScenarioKeys = new Set<string>();
+
 function toErrorResult(error: unknown): ActionResult<never> {
   // stg/Preview のみ: デバッグ用ログ（VERCEL_ENV=preview は Preview デプロイで自動設定）
   if (process.env.VERCEL_ENV === "preview") {
@@ -61,6 +71,30 @@ function toErrorResult(error: unknown): ActionResult<never> {
   };
 }
 
+async function maybeFailListPostsOnceForE2E(input: ListPostsInput): Promise<void> {
+  if (process.env.E2E_TEST_MODE !== "true") {
+    return;
+  }
+
+  if (typeof input.cursor !== "undefined" && input.cursor !== null) {
+    return;
+  }
+
+  const requestHeaders = await headers();
+  const scenario = requestHeaders.get(E2E_SCENARIO_HEADER);
+  if (scenario !== E2E_LIST_INITIAL_FAIL_ONCE) {
+    return;
+  }
+
+  const scenarioKey = `${scenario}:${input.view}:${input.favoriteOnly}`;
+  if (consumedE2EScenarioKeys.has(scenarioKey)) {
+    return;
+  }
+
+  consumedE2EScenarioKeys.add(scenarioKey);
+  throw new PostRepositoryError("INTERNAL_ERROR", "エラーが発生しました");
+}
+
 async function resolveRepositoryForAction(): Promise<PostRepository> {
   if (getStubPostsEnabled()) {
     return postRepository;
@@ -74,8 +108,9 @@ async function resolveRepositoryForAction(): Promise<PostRepository> {
 
 export async function listPostsAction(input: ListPostsInput): Promise<ActionResult<ListPostsResult>> {
   try {
-    const repository = await resolveRepositoryForAction();
     const validated = toValidatedListPostsInput(input);
+    await maybeFailListPostsOnceForE2E(validated);
+    const repository = await resolveRepositoryForAction();
     const data = await repository.listPosts(validated);
     return { ok: true, data };
   } catch (error) {

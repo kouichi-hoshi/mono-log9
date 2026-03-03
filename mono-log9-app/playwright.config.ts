@@ -4,8 +4,8 @@ const runRealE2E = process.env.RUN_REAL_E2E === "true";
 const e2ePort = 3100;
 const e2eBaseUrl = `http://127.0.0.1:${e2ePort}`;
 const webServerCommand = runRealE2E
-  ? `AUTH_URL=${e2eBaseUrl} NEXT_DIST_DIR=.next-playwright PORT=${e2ePort} NODE_ENV=development USE_STUB_AUTH=false USE_STUB_POSTS=false pnpm dev`
-  : `AUTH_URL=${e2eBaseUrl} NEXT_DIST_DIR=.next-playwright PORT=${e2ePort} NODE_ENV=development USE_STUB_AUTH=true USE_STUB_POSTS=true pnpm dev`;
+  ? `AUTH_URL=${e2eBaseUrl} NEXT_DIST_DIR=.next-playwright PORT=${e2ePort} NODE_ENV=development E2E_TEST_MODE=true USE_STUB_AUTH=false USE_STUB_POSTS=false pnpm dev`
+  : `AUTH_URL=${e2eBaseUrl} NEXT_DIST_DIR=.next-playwright PORT=${e2ePort} NODE_ENV=development E2E_TEST_MODE=true USE_STUB_AUTH=true USE_STUB_POSTS=true pnpm dev`;
 
 export default defineConfig({
   testDir: "./e2e",

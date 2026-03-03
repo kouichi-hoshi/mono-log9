@@ -9,6 +9,7 @@ import {
   updatePostAction,
 } from "@/app/actions/postActions";
 import { auth } from "@/auth";
+import { headers } from "next/headers";
 import { ensureActorUserFromSession } from "@/lib/auth/actorUser";
 import { createDocFromPlainText, extractContentText } from "@/lib/posts/content";
 import { PostRepositoryError } from "@/lib/posts/errors";
@@ -17,6 +18,10 @@ import { getActorPostRepository, postRepository } from "@/lib/posts/postReposito
 
 jest.mock("@/auth", () => ({
   auth: jest.fn(),
+}));
+
+jest.mock("next/headers", () => ({
+  headers: jest.fn(),
 }));
 
 jest.mock("@/lib/auth/actorUser", () => ({
@@ -55,14 +60,22 @@ function getActorRepositoryMock() {
 }
 
 describe("postActions", () => {
+  const originalE2ETestMode = process.env.E2E_TEST_MODE;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.E2E_TEST_MODE = originalE2ETestMode;
     (getStubPostsEnabled as jest.Mock).mockReturnValue(true);
     (auth as jest.Mock).mockResolvedValue({
       user: { googleSub: "google-sub-1" },
     });
     (ensureActorUserFromSession as jest.Mock).mockResolvedValue("user-001");
     getActorRepositoryMock().mockReturnValue(getRepositoryMock());
+    (headers as jest.Mock).mockResolvedValue(new Headers());
+  });
+
+  afterAll(() => {
+    process.env.E2E_TEST_MODE = originalE2ETestMode;
   });
 
   it("returns ok result for listPostsAction", async () => {
@@ -319,6 +332,40 @@ describe("postActions", () => {
         message: "エラーが発生しました",
       },
     });
+  });
+
+  it("fails listPosts only once when e2e scenario header is enabled", async () => {
+    process.env.E2E_TEST_MODE = "true";
+    (headers as jest.Mock).mockResolvedValue(
+      new Headers({
+        "x-e2e-scenario": "list-initial-fail-once",
+      })
+    );
+    getRepositoryMock().listPosts.mockResolvedValue({
+      items: [],
+      hasNext: false,
+      nextCursor: null,
+    });
+
+    const first = await listPostsAction({ view: "memo", favoriteOnly: false, limit: 10 });
+    const second = await listPostsAction({ view: "memo", favoriteOnly: false, limit: 10 });
+
+    expect(first).toEqual({
+      ok: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "エラーが発生しました",
+      },
+    });
+    expect(second).toEqual({
+      ok: true,
+      data: {
+        items: [],
+        hasNext: false,
+        nextCursor: null,
+      },
+    });
+    expect(getRepositoryMock().listPosts).toHaveBeenCalledTimes(1);
   });
 
   it("returns VALIDATION_ERROR when list limit exceeds max", async () => {

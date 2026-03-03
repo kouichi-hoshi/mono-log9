@@ -43,6 +43,8 @@ describe("useGuardedQueryNavigation", () => {
       router,
       onDiscardEdits,
       saveCurrentScroll,
+      onOpenMemoEdit,
+      onCloseMemoEdit,
     };
   }
 
@@ -118,5 +120,70 @@ describe("useGuardedQueryNavigation", () => {
     expect(result.current.pendingAction).toBeNull();
     expect(saveCurrentScroll).toHaveBeenCalledTimes(1);
     expect(router.push).toHaveBeenCalledWith("/?view=note");
+  });
+
+  it("defers openMemoEdit action while discard confirmation is open", () => {
+    const { result, onOpenMemoEdit } = setup({
+      queryString: "view=memo",
+      hasUnsavedEdits: true,
+    });
+
+    act(() => {
+      result.current.runOrConfirm({
+        type: "openMemoEdit",
+        postId: "memo-001",
+        initialValue: "initial memo",
+      });
+    });
+
+    expect(result.current.isDiscardDialogOpen).toBe(true);
+    expect(result.current.pendingAction).toEqual({
+      type: "openMemoEdit",
+      postId: "memo-001",
+      initialValue: "initial memo",
+    });
+    expect(onOpenMemoEdit).not.toHaveBeenCalled();
+  });
+
+  it("executes deferred openMemoEdit after discard and continue", () => {
+    const { result, onOpenMemoEdit, onDiscardEdits } = setup({
+      queryString: "view=memo",
+      hasUnsavedEdits: true,
+    });
+
+    act(() => {
+      result.current.runOrConfirm({
+        type: "openMemoEdit",
+        postId: "memo-002",
+        initialValue: "keep this",
+      });
+    });
+
+    act(() => {
+      result.current.handleDiscardAndContinue();
+    });
+
+    expect(onDiscardEdits).toHaveBeenCalledTimes(1);
+    expect(onOpenMemoEdit).toHaveBeenCalledTimes(1);
+    expect(onOpenMemoEdit).toHaveBeenCalledWith("memo-002", "keep this");
+    expect(result.current.isDiscardDialogOpen).toBe(false);
+    expect(result.current.pendingAction).toBeNull();
+  });
+
+  it("executes closeMemoEdit action immediately when there are no unsaved edits", () => {
+    const { result, onCloseMemoEdit } = setup({
+      queryString: "view=memo",
+      hasUnsavedEdits: false,
+    });
+
+    act(() => {
+      result.current.runOrConfirm({
+        type: "closeMemoEdit",
+      });
+    });
+
+    expect(result.current.isDiscardDialogOpen).toBe(false);
+    expect(result.current.pendingAction).toBeNull();
+    expect(onCloseMemoEdit).toHaveBeenCalledTimes(1);
   });
 });

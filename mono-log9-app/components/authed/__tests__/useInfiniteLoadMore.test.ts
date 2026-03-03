@@ -68,6 +68,18 @@ describe("useInfiniteLoadMore", () => {
     }
   }
 
+  function triggerNonIntersecting() {
+    for (const instance of observerInstances) {
+      if (instance.disconnected || instance.observed.size === 0) {
+        continue;
+      }
+      instance.callback(
+        [{ isIntersecting: false } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      );
+    }
+  }
+
   function setup(overrides?: Partial<Parameters<typeof useInfiniteLoadMore>[0]>) {
     const fetchNextPage = jest.fn(async () => undefined);
     const baseProps: Parameters<typeof useInfiniteLoadMore>[0] = {
@@ -132,6 +144,32 @@ describe("useInfiniteLoadMore", () => {
     expect(fetchNextPage).toHaveBeenCalledTimes(1);
   });
 
+  it("does not start observing when there is no next page", () => {
+    const { result, rerender, baseProps } = setup({ hasNextPage: false });
+    const sentinel = document.createElement("div");
+
+    act(() => {
+      result.current.loadMoreSentinelRef(sentinel);
+    });
+    activateObserver(rerender, baseProps);
+
+    expect(observerInstances).toHaveLength(0);
+  });
+
+  it("does not fetch when intersection callback is non-intersecting", () => {
+    const { result, rerender, fetchNextPage, baseProps } = setup();
+    const sentinel = document.createElement("div");
+
+    act(() => {
+      result.current.loadMoreSentinelRef(sentinel);
+    });
+    activateObserver(rerender, baseProps);
+
+    triggerNonIntersecting();
+
+    expect(fetchNextPage).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       title: "while fetching next page",
@@ -177,5 +215,29 @@ describe("useInfiniteLoadMore", () => {
     unmount();
 
     expect(observerInstances[0].disconnected).toBe(true);
+  });
+
+  it("disconnects previous observer and observes new sentinel after ref replacement", () => {
+    const { result, rerender, baseProps } = setup();
+    const firstSentinel = document.createElement("div");
+    const secondSentinel = document.createElement("div");
+
+    act(() => {
+      result.current.loadMoreSentinelRef(firstSentinel);
+    });
+    activateObserver(rerender, baseProps);
+
+    expect(observerInstances).toHaveLength(1);
+    expect(observerInstances[0].observed.has(firstSentinel)).toBe(true);
+
+    act(() => {
+      result.current.loadMoreSentinelRef(secondSentinel);
+    });
+    activateObserver(rerender, baseProps);
+
+    expect(observerInstances).toHaveLength(2);
+    expect(observerInstances[0].disconnected).toBe(true);
+    expect(observerInstances[1].observed.has(secondSentinel)).toBe(true);
+    expect(observerInstances[1].observed.has(firstSentinel)).toBe(false);
   });
 });
