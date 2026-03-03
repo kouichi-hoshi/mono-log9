@@ -18,10 +18,10 @@ import {
 } from "@/app/actions/postActions";
 import ControlledLoginDialog from "@/components/auth/ControlledLoginDialog";
 import Container1 from "@/components/authed/Container1";
-import Container2 from "@/components/authed/Container2";
 import DiscardConfirmDialog from "@/components/authed/DiscardConfirmDialog";
 import HeaderPostArea from "@/components/authed/HeaderPostArea";
 import NoteComposerModal from "@/components/authed/NoteComposerModal";
+import PostsSection from "@/components/authed/PostsSection";
 import TrashDeleteDialog from "@/components/authed/TrashDeleteDialog";
 import type { AuthedUser, ViewMode } from "@/components/authed/stubs";
 import type { NoteDraft } from "@/components/authed/types";
@@ -275,6 +275,13 @@ export default function AuthedScreen({
     isQueryNormalizing: rawNormalizedQuery.changed,
     fetchNextPage: listQuery.fetchNextPage,
   });
+  const handleRetryInitialLoad = React.useCallback(() => {
+    void listQuery.refetch();
+  }, [listQuery]);
+
+  const handleRetryNextPageLoad = React.useCallback(() => {
+    void listQuery.fetchNextPage();
+  }, [listQuery]);
 
   React.useLayoutEffect(() => {
     saveCurrentScrollRef.current = saveCurrentScrollFromHook;
@@ -866,6 +873,9 @@ export default function AuthedScreen({
     selectedTrashPostIds,
     updateAllCachedPostLists,
   ]);
+  const handleTrashDeleteConfirm = React.useCallback(() => {
+    void handleConfirmDelete();
+  }, [handleConfirmDelete]);
 
   const handleDeleteDialogOpenChange = React.useCallback((open: boolean) => {
     if (isDeleteSubmitting) {
@@ -1053,46 +1063,38 @@ export default function AuthedScreen({
             <hr className="my-4 md:my-12 border border-foreground/10" />
           </section>
         )}
-        <main>
-          <article>
-            <Container2
-              mode={mode}
-              isTrashView={isTrashView}
-              favoriteOnly={favoriteOnly}
-              posts={posts}
-              trashPosts={trashPosts}
-              isInitialLoading={isInitialLoading}
-              isNextPageLoading={isNextPageLoading}
-              hasNextPage={Boolean(listQuery.hasNextPage)}
-              initialErrorMessage={initialErrorMessage}
-              nextPageErrorMessage={nextPageErrorMessage}
-              onRetryInitialLoad={() => {
-                void listQuery.refetch();
-              }}
-              onRetryNextPageLoad={() => {
-                void listQuery.fetchNextPage();
-              }}
-              loadMoreSentinelRef={loadMoreSentinelRef}
-              onFavoriteToggle={handleFavoriteFilterToggle}
-              onToggleFavorite={handleToggleFavorite}
-              onMoveToTrash={handleMoveToTrash}
-              onEdit={handleEdit}
-              editingMemoPostId={editingMemoPostId}
-              editingMemoValue={editingMemoValue}
-              onMemoEditValueChange={setEditingMemoValue}
-              onCancelMemoEdit={handleMemoEditCancel}
-              onSaveMemoEditStub={handleMemoEditSaveStub}
-              selectedTrashPostIds={selectedTrashPostIds}
-              onToggleTrashPostSelection={handleToggleTrashPostSelection}
-              onSelectAllVisibleTrashPosts={handleSelectAllVisibleTrashPosts}
-              onClearTrashPostSelection={handleClearTrashPostSelection}
-              onRequestDeleteSelectedTrashPosts={handleRequestDeleteSelectedTrashPosts}
-              onRequestEmptyTrash={handleRequestEmptyTrash}
-              onRestoreTrashPostStub={handleRestoreTrashPostStub}
-              onPermanentDeleteTrashPostStub={handlePermanentDeleteTrashPost}
-            />
-          </article>
-        </main>
+        <PostsSection
+          mode={mode}
+          isTrashView={isTrashView}
+          favoriteOnly={favoriteOnly}
+          posts={posts}
+          trashPosts={trashPosts}
+          isInitialLoading={isInitialLoading}
+          isNextPageLoading={isNextPageLoading}
+          hasNextPage={Boolean(listQuery.hasNextPage)}
+          initialErrorMessage={initialErrorMessage}
+          nextPageErrorMessage={nextPageErrorMessage}
+          onRetryInitialLoad={handleRetryInitialLoad}
+          onRetryNextPageLoad={handleRetryNextPageLoad}
+          loadMoreSentinelRef={loadMoreSentinelRef}
+          onFavoriteToggle={handleFavoriteFilterToggle}
+          onToggleFavorite={handleToggleFavorite}
+          onMoveToTrash={handleMoveToTrash}
+          onEdit={handleEdit}
+          editingMemoPostId={editingMemoPostId}
+          editingMemoValue={editingMemoValue}
+          onMemoEditValueChange={setEditingMemoValue}
+          onCancelMemoEdit={handleMemoEditCancel}
+          onSaveMemoEditStub={handleMemoEditSaveStub}
+          selectedTrashPostIds={selectedTrashPostIds}
+          onToggleTrashPostSelection={handleToggleTrashPostSelection}
+          onSelectAllVisibleTrashPosts={handleSelectAllVisibleTrashPosts}
+          onClearTrashPostSelection={handleClearTrashPostSelection}
+          onRequestDeleteSelectedTrashPosts={handleRequestDeleteSelectedTrashPosts}
+          onRequestEmptyTrash={handleRequestEmptyTrash}
+          onRestoreTrashPostStub={handleRestoreTrashPostStub}
+          onPermanentDeleteTrashPostStub={handlePermanentDeleteTrashPost}
+        />
       </div>
       <NoteComposerModal
         open={isNoteModalOpen}
@@ -1125,9 +1127,7 @@ export default function AuthedScreen({
         submitting={isDeleteSubmitting}
         errorMessage={deleteDialogErrorMessage}
         onOpenChange={handleDeleteDialogOpenChange}
-        onConfirm={() => {
-          void handleConfirmDelete();
-        }}
+        onConfirm={handleTrashDeleteConfirm}
       />
       <footer className="hidden">© {APP_NAME}</footer>
     </div>

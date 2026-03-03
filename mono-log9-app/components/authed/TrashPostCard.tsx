@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { PostRecord } from "@/lib/posts/types";
@@ -7,12 +9,12 @@ import type { PostRecord } from "@/lib/posts/types";
 type TrashPostCardProps = {
   post: PostRecord;
   checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
+  onCheckedChange: (postId: string, checked: boolean) => void;
   onRestore: (postId: string) => void;
   onPermanentDelete: (postId: string) => void;
 };
 
-export default function TrashPostCard({
+function TrashPostCard({
   post,
   checked,
   onCheckedChange,
@@ -35,7 +37,7 @@ export default function TrashPostCard({
           <Checkbox
             id={checkboxId}
             checked={checked}
-            onCheckedChange={(next) => onCheckedChange(Boolean(next))}
+            onCheckedChange={(next) => onCheckedChange(post.id, Boolean(next))}
             aria-label={`${post.id}を選択`}
           />
           <span className="sr-only">選択</span>
@@ -56,3 +58,5 @@ export default function TrashPostCard({
     </article>
   );
 }
+
+export default React.memo(TrashPostCard);

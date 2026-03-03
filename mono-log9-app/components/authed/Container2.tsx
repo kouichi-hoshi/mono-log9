@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 import LoadingStates from "@/components/authed/LoadingStates";
 import PostCard from "@/components/authed/PostCard";
 import TrashBulkActions from "@/components/authed/TrashBulkActions";
@@ -11,7 +13,7 @@ import type { PostRecord } from "@/lib/posts/types";
 import { cn } from "@/lib/utils";
 import { Star } from "lucide-react";
 
-type Container2Props = {
+export type Container2Props = {
   mode: ViewMode;
   isTrashView: boolean;
   favoriteOnly: boolean;
@@ -44,7 +46,7 @@ type Container2Props = {
   onPermanentDeleteTrashPostStub: (postId: string) => void;
 };
 
-export default function Container2({
+function Container2({
   mode,
   isTrashView,
   favoriteOnly,
@@ -77,14 +79,14 @@ export default function Container2({
   onPermanentDeleteTrashPostStub,
 }: Container2Props) {
   const hasSelection = selectedTrashPostIds.size > 0;
-  const handleToggleSelectAll = () => {
+  const handleToggleSelectAll = React.useCallback(() => {
     if (hasSelection) {
       onClearTrashPostSelection();
       return;
     }
 
     onSelectAllVisibleTrashPosts();
-  };
+  }, [hasSelection, onClearTrashPostSelection, onSelectAllVisibleTrashPosts]);
 
   return (
     <section className="space-y-4">
@@ -124,7 +126,7 @@ export default function Container2({
                 key={post.id}
                 post={post}
                 checked={selectedTrashPostIds.has(post.id)}
-                onCheckedChange={(checked) => onToggleTrashPostSelection(post.id, checked)}
+                onCheckedChange={onToggleTrashPostSelection}
                 onRestore={onRestoreTrashPostStub}
                 onPermanentDelete={onPermanentDeleteTrashPostStub}
               />
@@ -140,7 +142,7 @@ export default function Container2({
                 memoEditValue={post.mode === "memo" && editingMemoPostId === post.id ? editingMemoValue : ""}
                 onMemoEditValueChange={onMemoEditValueChange}
                 onCancelMemoEdit={onCancelMemoEdit}
-                onSaveMemoEditStub={(value) => onSaveMemoEditStub(post.id, value)}
+                onSaveMemoEditStub={onSaveMemoEditStub}
               />
             ))}
       </div>
@@ -180,3 +182,5 @@ export default function Container2({
     </section>
   );
 }
+
+export default React.memo(Container2);

@@ -1,7 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import PostCard from "@/components/authed/PostCard";
 import { createDocFromPlainText } from "@/lib/posts/content";
+import { clearNoteHtmlRenderCacheForTest } from "@/lib/posts/noteHtmlRenderCache";
 import type { PostRecord } from "@/lib/posts/types";
 import { sanitizeRichHtml } from "@/lib/sanitizeRichHtml";
 
@@ -21,90 +23,96 @@ const sanitizeRichHtmlMock = sanitizeRichHtml as jest.MockedFunction<typeof sani
 
 describe("PostCard", () => {
   beforeEach(() => {
+    clearNoteHtmlRenderCacheForTest();
     sanitizeRichHtmlMock.mockReset();
     sanitizeRichHtmlMock.mockImplementation(actualSanitizeRichHtml);
   });
 
   describe("TC-044: note display prioritizes content-derived HTML", () => {
-    it("renders .md-content with HTML elements (h2, etc.) when valid note content + contentText", () => {
-    const post: PostRecord = {
-      id: "note-001",
-      mode: "note",
-      content: {
-        type: "doc",
-        content: [
-          {
-            type: "heading",
-            attrs: { level: 2 },
-            content: [{ type: "text", text: "見出し" }],
-          },
-          {
-            type: "bulletList",
-            content: [
-              {
-                type: "listItem",
-                content: [
-                  {
-                    type: "paragraph",
-                    content: [
-                      {
-                        type: "text",
-                        text: "項目",
-                        marks: [{ type: "bold" }],
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-          {
-            type: "blockquote",
-            content: [
-              {
-                type: "paragraph",
-                content: [{ type: "text", text: "引用本文" }],
-              },
-            ],
-          },
-          {
-            type: "paragraph",
-            content: [
-              {
-                type: "text",
-                text: "参考",
-                marks: [{ type: "link", attrs: { href: "https://example.com" } }],
-              },
-            ],
-          },
-        ],
-      },
-      contentText: "見出し\n\n項目\n参考",
-      createdAt: "2026-02-15 12:00",
-      favorite: false,
-    };
+    it("renders plain text first, then .md-content with HTML elements after async compute", async () => {
+      const post: PostRecord = {
+        id: "note-001",
+        mode: "note",
+        content: {
+          type: "doc",
+          content: [
+            {
+              type: "heading",
+              attrs: { level: 2 },
+              content: [{ type: "text", text: "見出し" }],
+            },
+            {
+              type: "bulletList",
+              content: [
+                {
+                  type: "listItem",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [
+                        {
+                          type: "text",
+                          text: "項目",
+                          marks: [{ type: "bold" }],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              type: "blockquote",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "引用本文" }],
+                },
+              ],
+            },
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: "参考",
+                  marks: [{ type: "link", attrs: { href: "https://example.com" } }],
+                },
+              ],
+            },
+          ],
+        },
+        contentText: "見出し\n\n項目\n参考",
+        createdAt: "2026-02-15 12:00",
+        favorite: false,
+      };
 
-    render(
-      <PostCard
-        post={post}
-        onToggleFavorite={jest.fn()}
-        onEdit={jest.fn()}
-        onMoveToTrash={jest.fn()}
-      />
-    );
+      render(
+        <PostCard
+          post={post}
+          onToggleFavorite={jest.fn()}
+          onEdit={jest.fn()}
+          onMoveToTrash={jest.fn()}
+        />
+      );
 
-    const content = screen.getByTestId("post-content");
+      const content = screen.getByTestId("post-content");
+      expect(content).toHaveTextContent("見出し");
+      expect(content.querySelector(".md-content")).toBeNull();
 
-    expect(content.querySelector(".md-content")).not.toBeNull();
-    expect(within(content).getByRole("heading", { level: 2, name: "見出し" })).toBeInTheDocument();
-    expect(content.querySelector("ul")).not.toBeNull();
-    expect(content.querySelector("blockquote")?.textContent).toContain("引用本文");
-    expect(content.querySelector("strong")?.textContent).toBe("項目");
+      await waitFor(() => {
+        expect(content.querySelector(".md-content")).not.toBeNull();
+      });
 
-    const link = within(content).getByRole("link", { name: "参考" });
-    expect(link).toHaveAttribute("href", "https://example.com");
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(content.querySelector("script")).toBeNull();
+      expect(within(content).getByRole("heading", { level: 2, name: "見出し" })).toBeInTheDocument();
+      expect(content.querySelector("ul")).not.toBeNull();
+      expect(content.querySelector("blockquote")?.textContent).toContain("引用本文");
+      expect(content.querySelector("strong")?.textContent).toBe("項目");
+
+      const link = within(content).getByRole("link", { name: "参考" });
+      expect(link).toHaveAttribute("href", "https://example.com");
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(content.querySelector("script")).toBeNull();
     });
   });
 
@@ -311,5 +319,36 @@ describe("PostCard", () => {
     const link = screen.getByRole("link", { name: "https://example.com/path" });
     expect(link).toHaveAttribute("href", "https://example.com/path");
     expect(screen.getByTestId("post-content")).toHaveTextContent("参照: https://example.com/path。");
+  });
+
+  it("passes postId and value when saving memo edit", async () => {
+    const user = userEvent.setup();
+    const onSaveMemoEditStub = jest.fn(async () => true);
+    const post: PostRecord = {
+      id: "memo-edit-001",
+      mode: "memo",
+      content: createDocFromPlainText("編集前"),
+      contentText: "編集前",
+      createdAt: "2026-02-15 12:00",
+      favorite: false,
+    };
+
+    render(
+      <PostCard
+        post={post}
+        onToggleFavorite={jest.fn()}
+        onEdit={jest.fn()}
+        onMoveToTrash={jest.fn()}
+        isMemoEditing
+        memoEditValue="更新後メモ"
+        onMemoEditValueChange={jest.fn()}
+        onCancelMemoEdit={jest.fn()}
+        onSaveMemoEditStub={onSaveMemoEditStub}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "更新する" }));
+
+    expect(onSaveMemoEditStub).toHaveBeenCalledWith("memo-edit-001", "更新後メモ");
   });
 });

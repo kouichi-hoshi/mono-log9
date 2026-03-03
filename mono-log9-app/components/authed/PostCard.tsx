@@ -5,9 +5,8 @@ import { PencilLine, Star, Trash2 } from "lucide-react";
 
 import MemoEditor from "@/components/authed/MemoEditor";
 import { Button } from "@/components/ui/button";
-import { toSanitizableHtml } from "@/lib/posts/contentHtml";
-import type { PostRecord } from "@/lib/posts/types";
-import { sanitizeRichHtml } from "@/lib/sanitizeRichHtml";
+import { computeAndCacheNoteHtml, getCachedNoteHtml } from "@/lib/posts/noteHtmlRenderCache";
+import type { PostContent, PostRecord } from "@/lib/posts/types";
 import { cn } from "@/lib/utils";
 
 type PostCardProps = {
@@ -19,7 +18,15 @@ type PostCardProps = {
   memoEditValue?: string;
   onMemoEditValueChange?: (nextValue: string) => void;
   onCancelMemoEdit?: () => void;
-  onSaveMemoEditStub?: (value: string) => Promise<boolean> | boolean;
+  onSaveMemoEditStub?: (postId: string, value: string) => Promise<boolean> | boolean;
+};
+
+type DeferredNoteHtmlState = {
+  postId: string;
+  contentRef: PostContent;
+  contentText: string;
+  title: string;
+  sanitizedHtml: string | null;
 };
 
 const MEMO_URL_REGEX = /https?:\/\/[^\s]+/g;
@@ -97,7 +104,7 @@ function renderMemoContent(contentText: string): React.ReactNode[] {
   return nodes.length > 0 ? nodes : [contentText];
 }
 
-export default function PostCard({
+function PostCard({
   post,
   onToggleFavorite,
   onEdit,
@@ -108,29 +115,71 @@ export default function PostCard({
   onCancelMemoEdit,
   onSaveMemoEditStub,
 }: PostCardProps) {
-  const [hasHydrated, setHasHydrated] = React.useState(false);
   const isNote = post.mode === "note";
   const noteTitle = post.title?.trim() ?? "";
-  const sanitizedNoteHtml = React.useMemo(
-    () => {
-      if (!hasHydrated || !isNote) {
-        return null;
-      }
-
-      const html = toSanitizableHtml(post.content);
-      if (!html) {
-        return null;
-      }
-
-      const sanitized = sanitizeRichHtml(html);
-      return sanitized.length > 0 ? sanitized : null;
-    },
-    [hasHydrated, isNote, post.content]
+  const [deferredNoteHtmlState, setDeferredNoteHtmlState] = React.useState<DeferredNoteHtmlState | null>(null);
+  const cachedNoteHtml = React.useMemo(
+    () =>
+      isNote
+        ? getCachedNoteHtml({
+            postId: post.id,
+            content: post.content,
+            contentText: post.contentText,
+            title: noteTitle,
+          })
+        : undefined,
+    [isNote, noteTitle, post.content, post.contentText, post.id]
   );
 
+  const deferredNoteHtml =
+    deferredNoteHtmlState &&
+    deferredNoteHtmlState.postId === post.id &&
+    deferredNoteHtmlState.contentRef === post.content &&
+    deferredNoteHtmlState.contentText === post.contentText &&
+    deferredNoteHtmlState.title === noteTitle
+      ? deferredNoteHtmlState.sanitizedHtml
+      : null;
+
+  const sanitizedNoteHtml = cachedNoteHtml !== undefined ? cachedNoteHtml : deferredNoteHtml;
+
   React.useEffect(() => {
-    setHasHydrated(true);
-  }, []);
+    if (!isNote) {
+      return;
+    }
+    if (cachedNoteHtml !== undefined) {
+      return;
+    }
+
+    let isDisposed = false;
+    const timerId = window.setTimeout(() => {
+      if (isDisposed) {
+        return;
+      }
+      const sanitizedHtml = computeAndCacheNoteHtml({
+        postId: post.id,
+        content: post.content,
+        contentText: post.contentText,
+        title: noteTitle,
+      });
+
+      if (isDisposed) {
+        return;
+      }
+
+      setDeferredNoteHtmlState({
+        postId: post.id,
+        contentRef: post.content,
+        contentText: post.contentText,
+        title: noteTitle,
+        sanitizedHtml,
+      });
+    }, 0);
+
+    return () => {
+      isDisposed = true;
+      window.clearTimeout(timerId);
+    };
+  }, [cachedNoteHtml, isNote, noteTitle, post.content, post.contentText, post.id]);
 
   const handleFavorite = () => {
     onToggleFavorite(post.id);
@@ -144,7 +193,7 @@ export default function PostCard({
           onValueChange={(nextValue) => onMemoEditValueChange?.(nextValue)}
           isEditing
           onCancel={onCancelMemoEdit}
-          onSave={(value) => onSaveMemoEditStub?.(value) ?? false}
+          onSave={(value) => onSaveMemoEditStub?.(post.id, value) ?? false}
         />
       </article>
     );
@@ -163,10 +212,8 @@ export default function PostCard({
                 suppressHydrationWarning
                 dangerouslySetInnerHTML={{ __html: sanitizedNoteHtml }}
               />
-            ) : hasHydrated ? (
-              <div className="whitespace-pre-wrap">{post.contentText}</div>
             ) : (
-              <div suppressHydrationWarning />
+              <div className="whitespace-pre-wrap">{post.contentText}</div>
             )}
           </>
         ) : (
@@ -201,3 +248,5 @@ export default function PostCard({
     </article>
   );
 }
+
+export default React.memo(PostCard);

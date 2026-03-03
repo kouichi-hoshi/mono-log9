@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 import MemoEditor from "@/components/authed/MemoEditor";
 import type { ViewMode } from "@/components/authed/stubs";
 import { Button } from "@/components/ui/button";
@@ -13,7 +15,7 @@ type HeaderPostAreaProps = {
   onMemoSaveStub: (value: string) => Promise<boolean> | boolean;
 };
 
-export default function HeaderPostArea({
+function HeaderPostArea({
   viewMode,
   onNoteComposeClick,
   memoDraft,
@@ -41,3 +43,5 @@ export default function HeaderPostArea({
     <MemoEditor value={memoDraft} onValueChange={onMemoDraftChange} onSave={onMemoSaveStub} />
   );
 }
+
+export default React.memo(HeaderPostArea);
