@@ -2362,6 +2362,25 @@ describe("AuthedScreen", () => {
     });
   });
 
+  it("does not refetch note list when opening and closing note composer", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    renderAuthedScreen();
+
+    await waitFor(() => {
+      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(screen.getByRole("button", { name: "ノートを書く" }));
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
+    });
+    expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(1);
+  });
+
   it("pushes noteComposer edit query when opening note edit", async () => {
     const user = userEvent.setup();
     getNavigationMock().__mockNavigation.setQuery("view=note");

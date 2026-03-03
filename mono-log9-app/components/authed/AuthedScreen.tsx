@@ -78,6 +78,20 @@ type AuthedScreenProps = {
   user?: AuthedUser;
 };
 
+const DEFAULT_AUTHED_USER: AuthedUser = {
+  name: "テストユーザー",
+  handle: "@mono-log",
+  imageUrl: null,
+};
+
+function useLatestRef<T>(value: T) {
+  const valueRef = React.useRef(value);
+  React.useLayoutEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+  return valueRef;
+}
+
 function toErrorMessage(error: unknown): string | null {
   if (error instanceof PostsListQueryError) {
     return error.message;
@@ -119,7 +133,7 @@ function parsePostsListConditionFromQueryKey(key: QueryKey): PostsListCondition 
 
 export default function AuthedScreen({
   authMode = "stub",
-  user = { name: "テストユーザー", handle: "@mono-log", imageUrl: null },
+  user = DEFAULT_AUTHED_USER,
 }: AuthedScreenProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -226,6 +240,9 @@ export default function AuthedScreen({
     },
     onDiscardEdits: discardCurrentEdits,
   });
+  const effectiveQueryStringRef = useLatestRef(effectiveQueryString);
+  const runOrConfirmRef = useLatestRef(runOrConfirm);
+  const executeActionRef = useLatestRef(executeAction);
 
   const normalizedQuery = React.useMemo(
     () => normalizeAuthedQuery(effectiveQueryString),
@@ -253,6 +270,7 @@ export default function AuthedScreen({
   const visibleItems = React.useMemo(() => flattenInfiniteItems(listQuery.data), [listQuery.data]);
   const posts = React.useMemo(() => (isTrashView ? [] : visibleItems), [isTrashView, visibleItems]);
   const trashPosts = React.useMemo(() => (isTrashView ? visibleItems : []), [isTrashView, visibleItems]);
+  const postsRef = useLatestRef(posts);
   const initialErrorMessage =
     !listQuery.data && listQuery.isError ? toErrorMessage(listQuery.error) : null;
   const nextPageErrorMessage =
@@ -275,13 +293,16 @@ export default function AuthedScreen({
     isQueryNormalizing: rawNormalizedQuery.changed,
     fetchNextPage: listQuery.fetchNextPage,
   });
+  const retryInitialLoadRef = useLatestRef(listQuery.refetch);
+  const retryNextPageLoadRef = useLatestRef(listQuery.fetchNextPage);
+
   const handleRetryInitialLoad = React.useCallback(() => {
-    void listQuery.refetch();
-  }, [listQuery]);
+    void retryInitialLoadRef.current();
+  }, [retryInitialLoadRef]);
 
   const handleRetryNextPageLoad = React.useCallback(() => {
-    void listQuery.fetchNextPage();
-  }, [listQuery]);
+    void retryNextPageLoadRef.current();
+  }, [retryNextPageLoadRef]);
 
   React.useLayoutEffect(() => {
     saveCurrentScrollRef.current = saveCurrentScrollFromHook;
@@ -505,46 +526,46 @@ export default function AuthedScreen({
   });
 
   const handleFavoriteFilterToggle = React.useCallback(() => {
-    const next = buildQueryForFavoriteToggle(effectiveQueryString);
+    const next = buildQueryForFavoriteToggle(effectiveQueryStringRef.current);
     if (!next.changed) {
       return;
     }
 
-    runOrConfirm({
+    runOrConfirmRef.current({
       type: "query",
       method: "push",
       nextQuery: next.nextQuery,
     });
-  }, [effectiveQueryString, runOrConfirm]);
+  }, [effectiveQueryStringRef, runOrConfirmRef]);
 
   const handleModeChange = React.useCallback(
     (nextMode: ViewMode) => {
-      const next = buildQueryForViewChange(effectiveQueryString, nextMode);
+      const next = buildQueryForViewChange(effectiveQueryStringRef.current, nextMode);
       if (!next.changed) {
         return;
       }
 
-      runOrConfirm({
+      runOrConfirmRef.current({
         type: "query",
         method: "push",
         nextQuery: next.nextQuery,
       });
     },
-    [effectiveQueryString, runOrConfirm]
+    [effectiveQueryStringRef, runOrConfirmRef]
   );
 
   const handleTrashClick = React.useCallback(() => {
-    const next = buildQueryForViewChange(effectiveQueryString, "trash");
+    const next = buildQueryForViewChange(effectiveQueryStringRef.current, "trash");
     if (!next.changed) {
       return;
     }
 
-    runOrConfirm({
+    runOrConfirmRef.current({
       type: "query",
       method: "push",
       nextQuery: next.nextQuery,
     });
-  }, [effectiveQueryString, runOrConfirm]);
+  }, [effectiveQueryStringRef, runOrConfirmRef]);
 
   React.useEffect(() => {
     if (!isTrashView) {
@@ -614,27 +635,27 @@ export default function AuthedScreen({
   );
 
   const handleOpenNoteCreate = React.useCallback(() => {
-    const next = buildQueryForNoteComposerOpen(effectiveQueryString, { mode: "create" });
+    const next = buildQueryForNoteComposerOpen(effectiveQueryStringRef.current, { mode: "create" });
     if (!next.changed) {
       return;
     }
 
-    runOrConfirm({
+    runOrConfirmRef.current({
       type: "query",
       method: "push",
       nextQuery: next.nextQuery,
     });
-  }, [effectiveQueryString, runOrConfirm]);
+  }, [effectiveQueryStringRef, runOrConfirmRef]);
 
   const handleEdit = React.useCallback(
     (postId: string) => {
-      const target = posts.find((post) => post.id === postId);
+      const target = postsRef.current.find((post) => post.id === postId);
       if (!target) {
         return;
       }
 
       if (target.mode === "memo") {
-        runOrConfirm({
+        runOrConfirmRef.current({
           type: "openMemoEdit",
           postId,
           initialValue: target.contentText,
@@ -642,7 +663,7 @@ export default function AuthedScreen({
         return;
       }
 
-      const next = buildQueryForNoteComposerOpen(effectiveQueryString, {
+      const next = buildQueryForNoteComposerOpen(effectiveQueryStringRef.current, {
         mode: "edit",
         postId,
       });
@@ -650,13 +671,13 @@ export default function AuthedScreen({
         return;
       }
 
-      runOrConfirm({
+      runOrConfirmRef.current({
         type: "query",
         method: "push",
         nextQuery: next.nextQuery,
       });
     },
-    [effectiveQueryString, posts, runOrConfirm]
+    [effectiveQueryStringRef, postsRef, runOrConfirmRef]
   );
 
   const upsertPostInVisibleList = React.useCallback(
@@ -740,8 +761,8 @@ export default function AuthedScreen({
   );
 
   const handleMemoEditCancel = React.useCallback(() => {
-    runOrConfirm({ type: "closeMemoEdit" });
-  }, [runOrConfirm]);
+    runOrConfirmRef.current({ type: "closeMemoEdit" });
+  }, [runOrConfirmRef]);
 
   const handleNoteSaveStub = React.useCallback(
     async (draft: NoteDraft) => {
@@ -893,11 +914,11 @@ export default function AuthedScreen({
       return;
     }
 
-    const next = buildQueryForNoteComposerClose(effectiveQueryString);
+    const next = buildQueryForNoteComposerClose(effectiveQueryStringRef.current);
     if (skipDiscardConfirmOnNextNoteCloseRef.current) {
       skipDiscardConfirmOnNextNoteCloseRef.current = false;
       if (next.changed) {
-        executeAction({
+        executeActionRef.current({
           type: "query",
           method: "push",
           nextQuery: next.nextQuery,
@@ -910,25 +931,25 @@ export default function AuthedScreen({
       return;
     }
 
-    runOrConfirm({
+    runOrConfirmRef.current({
       type: "query",
       method: "push",
       nextQuery: next.nextQuery,
     });
-  }, [effectiveQueryString, executeAction, runOrConfirm]);
+  }, [effectiveQueryStringRef, executeActionRef, runOrConfirmRef]);
 
   const handleNoteModalRequestClose = React.useCallback(() => {
-    const next = buildQueryForNoteComposerClose(effectiveQueryString);
+    const next = buildQueryForNoteComposerClose(effectiveQueryStringRef.current);
     if (!next.changed) {
       return;
     }
 
-    runOrConfirm({
+    runOrConfirmRef.current({
       type: "query",
       method: "push",
       nextQuery: next.nextQuery,
     });
-  }, [effectiveQueryString, runOrConfirm]);
+  }, [effectiveQueryStringRef, runOrConfirmRef]);
 
   const handleMoveToTrash = React.useCallback(
     async (postId: string) => {

@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { NotebookPen, StickyNote, Trash2 } from "lucide-react";
 
 import UserMenu from "@/components/authed/UserMenu";
@@ -19,7 +20,7 @@ type Container1Props = {
   onTrashClick: () => void;
 };
 
-export default function Container1({
+function Container1({
   user,
   mode,
   view,
@@ -86,3 +87,5 @@ export default function Container1({
     </section>
   );
 }
+
+export default React.memo(Container1);
