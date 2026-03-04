@@ -380,6 +380,8 @@ jest.mock("next/navigation", () => {
 
   const listeners = new Set<() => void>();
   let currentQuery = "";
+  let shouldSyncPush = true;
+  let pushDelayMs = 0;
 
   const notify = () => {
     for (const listener of listeners) {
@@ -393,7 +395,20 @@ jest.mock("next/navigation", () => {
   };
 
   const push = jest.fn((href: string) => {
-    currentQuery = toQueryString(href);
+    if (!shouldSyncPush) {
+      return;
+    }
+
+    const nextQuery = toQueryString(href);
+    if (pushDelayMs > 0) {
+      window.setTimeout(() => {
+        currentQuery = nextQuery;
+        notify();
+      }, pushDelayMs);
+      return;
+    }
+
+    currentQuery = nextQuery;
     notify();
   });
 
@@ -433,9 +448,17 @@ jest.mock("next/navigation", () => {
       },
       reset() {
         currentQuery = "";
+        shouldSyncPush = true;
+        pushDelayMs = 0;
         listeners.clear();
         push.mockClear();
         replace.mockClear();
+      },
+      setPushSyncEnabled(enabled: boolean) {
+        shouldSyncPush = enabled;
+      },
+      setPushDelayMs(ms: number) {
+        pushDelayMs = ms;
       },
     },
   };
@@ -447,6 +470,8 @@ type NavigationMock = {
     getPushMock: () => jest.Mock;
     getReplaceMock: () => jest.Mock;
     reset: () => void;
+    setPushSyncEnabled: (enabled: boolean) => void;
+    setPushDelayMs: (ms: number) => void;
   };
 };
 
@@ -915,6 +940,106 @@ describe("AuthedScreen", () => {
 
     expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenLastCalledWith(
       "/?stubAuth=1&foo=bar&view=trash&favoriteMemo="
+    );
+  });
+
+  it("updates mode button active state immediately before delayed URL sync", async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    getNavigationMock().__mockNavigation.setPushDelayMs(200);
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    try {
+      renderAuthedScreen();
+
+      const memoButton = screen.getByRole("button", { name: "メモ" });
+      const noteButton = screen.getByRole("button", { name: "ノート" });
+      expect(memoButton).toHaveAttribute("aria-pressed", "true");
+      expect(noteButton).toHaveAttribute("aria-pressed", "false");
+
+      await user.click(noteButton);
+
+      expect(getNavigationMock().__mockNavigation.getPushMock()).toHaveBeenCalledWith("/?view=note");
+      expect(noteButton).toHaveAttribute("aria-pressed", "true");
+      expect(memoButton).toHaveAttribute("aria-pressed", "false");
+
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("rolls back optimistic mode state when URL sync does not complete", async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    getNavigationMock().__mockNavigation.setPushSyncEnabled(false);
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    try {
+      renderAuthedScreen();
+
+      const memoButton = screen.getByRole("button", { name: "メモ" });
+      const noteButton = screen.getByRole("button", { name: "ノート" });
+
+      await user.click(noteButton);
+      expect(noteButton).toHaveAttribute("aria-pressed", "true");
+      expect(memoButton).toHaveAttribute("aria-pressed", "false");
+
+      act(() => {
+        jest.advanceTimersByTime(4001);
+      });
+
+      expect(memoButton).toHaveAttribute("aria-pressed", "true");
+      expect(noteButton).toHaveAttribute("aria-pressed", "false");
+      expect(toast.error).toHaveBeenCalledWith("画面の切り替えに失敗しました。もう一度お試しください。");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("shows error toast and keeps current mode when mode navigation throws synchronously", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    const pushMock = getNavigationMock().__mockNavigation.getPushMock();
+    pushMock.mockImplementationOnce(() => {
+      throw new Error("navigation failed");
+    });
+
+    renderAuthedScreen();
+
+    const memoButton = screen.getByRole("button", { name: "メモ" });
+    const noteButton = screen.getByRole("button", { name: "ノート" });
+
+    await user.click(noteButton);
+
+    expect(pushMock).toHaveBeenCalledWith("/?view=note");
+    expect(memoButton).toHaveAttribute("aria-pressed", "true");
+    expect(noteButton).toHaveAttribute("aria-pressed", "false");
+    expect(toast.error).toHaveBeenCalledWith("navigation failed");
+  });
+
+  it("shows fallback toast and keeps current mode when trash navigation throws non-error", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+    const pushMock = getNavigationMock().__mockNavigation.getPushMock();
+    pushMock.mockImplementationOnce(() => {
+      throw "unknown";
+    });
+
+    renderAuthedScreen();
+
+    const memoButton = screen.getByRole("button", { name: "メモ" });
+    const trashButton = screen.getByRole("button", { name: "ごみ箱" });
+
+    await user.click(trashButton);
+
+    expect(pushMock).toHaveBeenCalledWith("/?view=trash");
+    expect(memoButton).toHaveAttribute("aria-pressed", "true");
+    expect(trashButton).toHaveAttribute("aria-pressed", "false");
+    expect(toast.error).toHaveBeenCalledWith(
+      "画面の切り替えに失敗しました。もう一度お試しください。"
     );
   });
 

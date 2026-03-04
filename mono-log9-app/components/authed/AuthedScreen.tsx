@@ -28,6 +28,7 @@ import type { NoteDraft } from "@/components/authed/types";
 import { useGuardedQueryNavigation } from "@/components/authed/useGuardedQueryNavigation";
 import { useInfiniteLoadMore } from "@/components/authed/useInfiniteLoadMore";
 import { useNoteComposerState } from "@/components/authed/useNoteComposerState";
+import { useOptimisticViewState } from "@/components/authed/useOptimisticViewState";
 import { usePostsScrollRestoration } from "@/components/authed/usePostsScrollRestoration";
 import {
   buildQueryForFavoriteToggle,
@@ -241,6 +242,17 @@ export default function AuthedScreen({
     onDiscardEdits: discardCurrentEdits,
   });
   const effectiveQueryStringRef = useLatestRef(effectiveQueryString);
+  const {
+    displayQueryString,
+    applyOptimisticView,
+  } = useOptimisticViewState({
+    effectiveQueryString,
+    hasUnsavedEdits,
+    syncTimeoutMs: 4000,
+    onSyncTimeout: () => {
+      toast.error("画面の切り替えに失敗しました。もう一度お試しください。");
+    },
+  });
   const runOrConfirmRef = useLatestRef(runOrConfirm);
   const executeActionRef = useLatestRef(executeAction);
 
@@ -248,6 +260,12 @@ export default function AuthedScreen({
     () => normalizeAuthedQuery(effectiveQueryString),
     [effectiveQueryString]
   );
+  const displayNormalizedQuery = React.useMemo(
+    () => normalizeAuthedQuery(displayQueryString),
+    [displayQueryString]
+  );
+  const displayIsTrashView = displayNormalizedQuery.state.view === "trash";
+  const displayMode: ViewMode = displayNormalizedQuery.state.activeMode ?? "memo";
   const isTrashView = normalizedQuery.state.view === "trash";
   const mode: ViewMode = normalizedQuery.state.activeMode ?? "memo";
   const favoriteOnly = isTrashView
@@ -545,13 +563,22 @@ export default function AuthedScreen({
         return;
       }
 
-      runOrConfirmRef.current({
-        type: "query",
-        method: "push",
-        nextQuery: next.nextQuery,
-      });
+      try {
+        runOrConfirmRef.current({
+          type: "query",
+          method: "push",
+          nextQuery: next.nextQuery,
+        });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "画面の切り替えに失敗しました。もう一度お試しください。");
+        return;
+      }
+
+      if (!hasUnsavedEdits) {
+        applyOptimisticView(nextMode, next.nextQuery);
+      }
     },
-    [effectiveQueryStringRef, runOrConfirmRef]
+    [applyOptimisticView, effectiveQueryStringRef, hasUnsavedEdits, runOrConfirmRef]
   );
 
   const handleTrashClick = React.useCallback(() => {
@@ -560,12 +587,21 @@ export default function AuthedScreen({
       return;
     }
 
-    runOrConfirmRef.current({
-      type: "query",
-      method: "push",
-      nextQuery: next.nextQuery,
-    });
-  }, [effectiveQueryStringRef, runOrConfirmRef]);
+    try {
+      runOrConfirmRef.current({
+        type: "query",
+        method: "push",
+        nextQuery: next.nextQuery,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "画面の切り替えに失敗しました。もう一度お試しください。");
+      return;
+    }
+
+    if (!hasUnsavedEdits) {
+      applyOptimisticView("trash", next.nextQuery);
+    }
+  }, [applyOptimisticView, effectiveQueryStringRef, hasUnsavedEdits, runOrConfirmRef]);
 
   React.useEffect(() => {
     if (!isTrashView) {
@@ -1061,8 +1097,8 @@ export default function AuthedScreen({
           <div className="mx-auto w-full max-w-6xl">
             <Container1
               user={user}
-              mode={mode}
-              view={isTrashView ? "trash" : "list"}
+              mode={displayMode}
+              view={displayIsTrashView ? "trash" : "list"}
               onLogout={handleLogout}
               isLogoutSubmitting={isLogoutSubmitting}
               onModeChange={handleModeChange}

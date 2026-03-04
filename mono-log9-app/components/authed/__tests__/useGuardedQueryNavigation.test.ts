@@ -122,6 +122,36 @@ describe("useGuardedQueryNavigation", () => {
     expect(router.push).toHaveBeenCalledWith("/?view=note");
   });
 
+  it("continues navigation even when saveCurrentScroll throws", () => {
+    const { result, router, saveCurrentScroll } = setup({
+      queryString: "view=memo",
+      hasUnsavedEdits: false,
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    saveCurrentScroll.mockImplementation(() => {
+      throw new Error("scroll write failed");
+    });
+
+    try {
+      act(() => {
+        result.current.runOrConfirm({
+          type: "query",
+          method: "push",
+          nextQuery: "view=note",
+        });
+      });
+
+      expect(saveCurrentScroll).toHaveBeenCalledTimes(1);
+      expect(router.push).toHaveBeenCalledWith("/?view=note");
+      expect(warnSpy).toHaveBeenCalledWith(
+        "saveCurrentScroll failed, continue navigation",
+        expect.any(Error)
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it("defers openMemoEdit action while discard confirmation is open", () => {
     const { result, onOpenMemoEdit } = setup({
       queryString: "view=memo",

@@ -71,7 +71,14 @@ export function useGuardedQueryNavigation({
     (action: PendingAction) => {
       switch (action.type) {
         case "query": {
-          saveCurrentScroll();
+          try {
+            saveCurrentScroll();
+          } catch (error) {
+            if (process.env.NODE_ENV !== "production") {
+              console.warn("saveCurrentScroll failed, continue navigation", error);
+            }
+            // Scroll persistence failure must not block navigation.
+          }
           syncCommittedQuery(action.nextQuery);
           if (action.method === "push") {
             router.push(toRootPath(action.nextQuery));
