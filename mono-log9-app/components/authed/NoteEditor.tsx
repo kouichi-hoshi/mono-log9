@@ -84,7 +84,7 @@ export default function NoteEditor({
     editorProps: {
       attributes: {
         class:
-          "tiptap min-h-56 rounded-md border border-foreground/10 bg-background px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-foreground/20",
+          "tiptap rounded-md border border-foreground/10 bg-background px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-foreground/20",
         "aria-label": "ノート本文",
         "data-testid": "note-editor-input",
       },
@@ -172,7 +172,7 @@ export default function NoteEditor({
   );
 
   return (
-    <div className="space-y-3">
+    <div className="flex min-h-full flex-col gap-3">
       <input
         type="text"
         value={title}
@@ -188,7 +188,10 @@ export default function NoteEditor({
         onUnlinkClick={handleUnlinkClick}
       />
 
-      <EditorContent editor={editor} />
+      <EditorContent
+        editor={editor}
+        className="flex min-h-0 flex-1 flex-col [&>.tiptap]:flex-1"
+      />
 
       <LinkDialog
         open={isLinkDialogOpen}
