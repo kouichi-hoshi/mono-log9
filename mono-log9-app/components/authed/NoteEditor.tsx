@@ -172,7 +172,7 @@ export default function NoteEditor({
   );
 
   return (
-    <div className="flex min-h-full flex-col gap-3">
+    <div className="flex min-h-full flex-col gap-3 p-[3px]">
       <input
         type="text"
         value={title}
