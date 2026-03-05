@@ -40,6 +40,11 @@ export type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: ActionError };
 
+type ActionErrorResult = {
+  ok: false;
+  error: ActionError;
+};
+
 const E2E_SCENARIO_HEADER = "x-e2e-scenario";
 const E2E_LIST_INITIAL_FAIL_ONCE = "list-initial-fail-once";
 const consumedE2EScenarioKeys = new Set<string>();
@@ -93,7 +98,7 @@ function logPostActionPerf(
   );
 }
 
-function toErrorResult(error: unknown): ActionResult<never> {
+function toErrorResult(error: unknown): ActionErrorResult {
   // stg/Preview のみ: デバッグ用ログ（VERCEL_ENV=preview は Preview デプロイで自動設定）
   if (process.env.VERCEL_ENV === "preview") {
     console.error("[postActions] caught error:", error instanceof Error ? error.message : String(error));
