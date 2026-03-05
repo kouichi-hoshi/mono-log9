@@ -26,16 +26,27 @@ export default function MemoEditor({
 }: MemoEditorProps) {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const [showInternalAlert, setShowInternalAlert] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
   const showAlert = showInternalAlert || showValidationError;
 
   const handleSave = async () => {
+    if (isSaving) {
+      return;
+    }
+
     if (value.trim().length === 0) {
       setShowInternalAlert(true);
       return;
     }
 
     setShowInternalAlert(false);
-    const saved = await onSave(value);
+    setIsSaving(true);
+    let saved = false;
+    try {
+      saved = await onSave(value);
+    } finally {
+      setIsSaving(false);
+    }
     if (saved && !isEditing) {
       onValueChange("");
       inputRef.current?.focus();
@@ -55,6 +66,7 @@ export default function MemoEditor({
           type="text"
           value={value}
           aria-label="メモ本文"
+          disabled={isSaving}
           onChange={(event) => {
             onValueChange(event.target.value);
             if (showAlert) {
@@ -71,6 +83,7 @@ export default function MemoEditor({
             variant="outline"
             className="min-w-24 px-4"
             onClick={handleCancel}
+            disabled={isSaving}
           >
             キャンセル
           </Button>
@@ -80,8 +93,9 @@ export default function MemoEditor({
           variant="outline"
           className="min-w-24 px-4"
           onClick={handleSave}
+          disabled={isSaving}
         >
-          {isEditing ? "更新する" : "保存する"}
+          {isSaving ? "保存中..." : isEditing ? "更新する" : "保存する"}
         </Button>
       </div>
 

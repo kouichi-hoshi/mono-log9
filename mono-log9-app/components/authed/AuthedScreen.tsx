@@ -161,8 +161,11 @@ export default function AuthedScreen({
   const [deleteDialogErrorMessage, setDeleteDialogErrorMessage] = React.useState<string | null>(null);
   const [isLoginDialogOpen, setIsLoginDialogOpen] = React.useState(false);
   const [isLogoutSubmitting, setIsLogoutSubmitting] = React.useState(false);
-  const [liveNoteDraft, setLiveNoteDraft] = React.useState<ReloginNoteDraft | null>(null);
   const [restoredNoteDraft, setRestoredNoteDraft] = React.useState<ReloginNoteDraft | null>(null);
+  const liveNoteDraftRef = React.useRef<ReloginNoteDraft | null>(null);
+  const memoDraftRef = useLatestRef(memoDraft);
+  const editingMemoPostIdRef = useLatestRef(editingMemoPostId);
+  const editingMemoValueRef = useLatestRef(editingMemoValue);
 
   const handledInitialErrorKeyRef = React.useRef<string | null>(null);
   const handledNextPageErrorKeyRef = React.useRef<string | null>(null);
@@ -199,22 +202,15 @@ export default function AuthedScreen({
     try {
       saveReloginDraft({
         query: queryString,
-        memoDraft,
-        editingMemoPostId,
-        editingMemoValue,
-        noteDraft: liveNoteDraft,
+        memoDraft: memoDraftRef.current,
+        editingMemoPostId: editingMemoPostIdRef.current,
+        editingMemoValue: editingMemoValueRef.current,
+        noteDraft: liveNoteDraftRef.current,
       });
     } catch {
       // Storage failures are non-fatal; continue relogin flow.
     }
-  }, [
-    authMode,
-    editingMemoPostId,
-    editingMemoValue,
-    liveNoteDraft,
-    memoDraft,
-    queryString,
-  ]);
+  }, [authMode, editingMemoPostIdRef, editingMemoValueRef, memoDraftRef, queryString]);
 
   const {
     effectiveQueryString,
@@ -518,6 +514,9 @@ export default function AuthedScreen({
 
   const consumeRestoredNoteDraft = React.useCallback(() => {
     setRestoredNoteDraft(null);
+  }, []);
+  const handleLiveNoteDraftChange = React.useCallback((draft: ReloginNoteDraft | null) => {
+    liveNoteDraftRef.current = draft;
   }, []);
 
   const {
@@ -1162,7 +1161,7 @@ export default function AuthedScreen({
         initialPlainText={noteModalInitialPlainText}
         onSaveStub={handleNoteSaveStub}
         onDirtyChange={setNoteModalDirty}
-        onDraftChange={setLiveNoteDraft}
+        onDraftChange={handleLiveNoteDraftChange}
         onRequestClose={handleNoteModalRequestClose}
       />
       <ControlledLoginDialog

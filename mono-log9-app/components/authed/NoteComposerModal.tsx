@@ -41,6 +41,7 @@ export default function NoteComposerModal({
     plainText: "",
   });
   const [showValidationError, setShowValidationError] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
   const draftRef = React.useRef(draft);
   const initializedSeedRef = React.useRef<string | null>(null);
   const initializedDraftRef = React.useRef<NoteDraft | null>(null);
@@ -149,17 +150,27 @@ export default function NoteComposerModal({
   }, [closeNoteModal, onRequestClose]);
 
   const handleSaveNote = React.useCallback(async () => {
+    if (isSaving) {
+      return;
+    }
+
     if (draft.plainText.trim().length === 0 || !draft.contentJson) {
       setShowValidationError(true);
       return;
     }
 
     setShowValidationError(false);
-    const saved = await onSaveStub(draft);
+    setIsSaving(true);
+    let saved = false;
+    try {
+      saved = await onSaveStub(draft);
+    } finally {
+      setIsSaving(false);
+    }
     if (saved) {
       closeNoteModal();
     }
-  }, [closeNoteModal, draft, onSaveStub]);
+  }, [closeNoteModal, draft, isSaving, onSaveStub]);
 
   return (
     <FullscreenModal
@@ -173,7 +184,8 @@ export default function NoteComposerModal({
           onClose={requestCloseNoteModal}
           onSave={handleSaveNote}
           closeLabel="キャンセル"
-          saveLabel={mode === "edit" ? "更新する" : "保存する"}
+          saveLabel={isSaving ? "保存中..." : mode === "edit" ? "更新する" : "保存する"}
+          saveDisabled={isSaving}
         />
       }
     >
