@@ -83,6 +83,10 @@ function logPostActionPerf(
     ok: boolean;
     totalMs: number;
     resolveRepositoryMs?: number;
+    authImportMs?: number;
+    authSessionMs?: number;
+    ensureActorMs?: number;
+    actorRepositoryMs?: number;
     repositoryMs?: number;
     input: Record<string, unknown>;
     errorCode?: PostErrorCode;
@@ -151,14 +155,59 @@ async function maybeFailListPostsOnceForE2E(input: ListPostsInput): Promise<void
 }
 
 async function resolveRepositoryForAction(): Promise<PostRepository> {
+  const { repository } = await resolveRepositoryForActionWithMetrics();
+  return repository;
+}
+
+type ResolveRepositoryMetrics = {
+  totalMs: number;
+  authImportMs?: number;
+  authSessionMs?: number;
+  ensureActorMs?: number;
+  actorRepositoryMs?: number;
+};
+
+async function resolveRepositoryForActionWithMetrics(): Promise<{
+  repository: PostRepository;
+  metrics: ResolveRepositoryMetrics;
+}> {
+  const startedAt = Date.now();
+
   if (getStubPostsEnabled()) {
-    return postRepository;
+    return {
+      repository: postRepository,
+      metrics: {
+        totalMs: Date.now() - startedAt,
+      },
+    };
   }
 
+  const authImportStartedAt = Date.now();
   const { auth } = await import("@/auth");
+  const authImportMs = Date.now() - authImportStartedAt;
+
+  const authSessionStartedAt = Date.now();
   const session = await auth();
+  const authSessionMs = Date.now() - authSessionStartedAt;
+
+  const ensureActorStartedAt = Date.now();
   const actorUserId = await ensureActorUserFromSession(session);
-  return getActorPostRepository(actorUserId);
+  const ensureActorMs = Date.now() - ensureActorStartedAt;
+
+  const actorRepositoryStartedAt = Date.now();
+  const repository = getActorPostRepository(actorUserId);
+  const actorRepositoryMs = Date.now() - actorRepositoryStartedAt;
+
+  return {
+    repository,
+    metrics: {
+      totalMs: Date.now() - startedAt,
+      authImportMs,
+      authSessionMs,
+      ensureActorMs,
+      actorRepositoryMs,
+    },
+  };
 }
 
 export async function listPostsAction(input: ListPostsInput): Promise<ActionResult<ListPostsResult>> {
@@ -167,15 +216,23 @@ export async function listPostsAction(input: ListPostsInput): Promise<ActionResu
   const actionStartedAt = Date.now();
   const repositoryMode = getStubPostsEnabled() ? "stub" : "authjs";
   let resolveRepositoryMs: number | undefined;
+  let authImportMs: number | undefined;
+  let authSessionMs: number | undefined;
+  let ensureActorMs: number | undefined;
+  let actorRepositoryMs: number | undefined;
   let repositoryMs: number | undefined;
 
   try {
     const validated = toValidatedListPostsInput(input);
     await maybeFailListPostsOnceForE2E(validated);
 
-    const resolveRepositoryStartedAt = Date.now();
-    const repository = await resolveRepositoryForAction();
-    resolveRepositoryMs = Date.now() - resolveRepositoryStartedAt;
+    const resolved = await resolveRepositoryForActionWithMetrics();
+    const repository = resolved.repository;
+    resolveRepositoryMs = resolved.metrics.totalMs;
+    authImportMs = resolved.metrics.authImportMs;
+    authSessionMs = resolved.metrics.authSessionMs;
+    ensureActorMs = resolved.metrics.ensureActorMs;
+    actorRepositoryMs = resolved.metrics.actorRepositoryMs;
 
     const repositoryStartedAt = Date.now();
     const data = await repository.listPosts(validated);
@@ -190,6 +247,10 @@ export async function listPostsAction(input: ListPostsInput): Promise<ActionResu
         ok: true,
         totalMs,
         resolveRepositoryMs,
+        authImportMs,
+        authSessionMs,
+        ensureActorMs,
+        actorRepositoryMs,
         repositoryMs,
         input: {
           view: validated.view,
@@ -210,6 +271,10 @@ export async function listPostsAction(input: ListPostsInput): Promise<ActionResu
       ok: false,
       totalMs: Date.now() - actionStartedAt,
       resolveRepositoryMs,
+      authImportMs,
+      authSessionMs,
+      ensureActorMs,
+      actorRepositoryMs,
       repositoryMs,
       input: {
         view: input.view,
@@ -256,12 +321,20 @@ export async function setFavoriteAction(
   const actionStartedAt = Date.now();
   const repositoryMode = getStubPostsEnabled() ? "stub" : "authjs";
   let resolveRepositoryMs: number | undefined;
+  let authImportMs: number | undefined;
+  let authSessionMs: number | undefined;
+  let ensureActorMs: number | undefined;
+  let actorRepositoryMs: number | undefined;
   let repositoryMs: number | undefined;
 
   try {
-    const resolveRepositoryStartedAt = Date.now();
-    const repository = await resolveRepositoryForAction();
-    resolveRepositoryMs = Date.now() - resolveRepositoryStartedAt;
+    const resolved = await resolveRepositoryForActionWithMetrics();
+    const repository = resolved.repository;
+    resolveRepositoryMs = resolved.metrics.totalMs;
+    authImportMs = resolved.metrics.authImportMs;
+    authSessionMs = resolved.metrics.authSessionMs;
+    ensureActorMs = resolved.metrics.ensureActorMs;
+    actorRepositoryMs = resolved.metrics.actorRepositoryMs;
 
     const repositoryStartedAt = Date.now();
     const data = await repository.setFavorite(input);
@@ -274,6 +347,10 @@ export async function setFavoriteAction(
       ok: true,
       totalMs: Date.now() - actionStartedAt,
       resolveRepositoryMs,
+      authImportMs,
+      authSessionMs,
+      ensureActorMs,
+      actorRepositoryMs,
       repositoryMs,
       input: {
         postId: input.postId,
@@ -291,6 +368,10 @@ export async function setFavoriteAction(
       ok: false,
       totalMs: Date.now() - actionStartedAt,
       resolveRepositoryMs,
+      authImportMs,
+      authSessionMs,
+      ensureActorMs,
+      actorRepositoryMs,
       repositoryMs,
       input: {
         postId: input.postId,

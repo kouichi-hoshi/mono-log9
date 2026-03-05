@@ -86,6 +86,46 @@ function throwInvalidCursorError(): never {
   throw new PostRepositoryError("INVALID_CURSOR", "cursor is invalid");
 }
 
+function resolveLogEnv(): "prod" | "stg" | "dev" | "unknown" {
+  const raw = (
+    process.env.APP_ENV ??
+    process.env.VERCEL_ENV ??
+    process.env.NODE_ENV ??
+    "unknown"
+  ).toLowerCase();
+
+  if (raw === "production" || raw === "prod") {
+    return "prod";
+  }
+  if (raw === "preview" || raw === "stg" || raw === "stage" || raw === "staging") {
+    return "stg";
+  }
+  if (raw === "development" || raw === "dev") {
+    return "dev";
+  }
+  return "unknown";
+}
+
+function logDbPostRepositoryPerf(payload: {
+  action: "setFavorite";
+  ok: boolean;
+  totalMs: number;
+  findFirstMs?: number;
+  updateMs?: number;
+  updateSkipped?: boolean;
+  input: Record<string, unknown>;
+  errorCode?: string;
+}): void {
+  console.info(
+    JSON.stringify({
+      event: "db_post_repository_perf",
+      env: resolveLogEnv(),
+      ...payload,
+      timestamp: new Date().toISOString(),
+    })
+  );
+}
+
 function mapPrismaError(error: unknown): PostRepositoryError {
   if (error instanceof PostRepositoryError) {
     return error;
@@ -336,45 +376,93 @@ export function createDbPostRepository({ actorUserId }: CreateDbPostRepositoryIn
     },
 
     async setFavorite(input: SetFavoriteInput): Promise<FavoriteMutationResult> {
+      const startedAt = Date.now();
+      let findFirstMs: number | undefined;
+      let updateMs: number | undefined;
       const prisma = (await getPrismaClient()) as {
         post: {
           findFirst: (args: Record<string, unknown>) => Promise<DbFavoriteRow | null>;
           update: (args: Record<string, unknown>) => Promise<DbFavoriteRow>;
         };
       };
-      const postId = ensurePostIdUuid(input.postId);
-      if (typeof input.favorite !== "boolean") {
-        throwValidationError();
-      }
+      try {
+        const postId = ensurePostIdUuid(input.postId);
+        if (typeof input.favorite !== "boolean") {
+          throwValidationError();
+        }
 
-      const existing = await runPrisma(() =>
-        prisma.post.findFirst({
-          where: { id: postId, authorId: actorUserId },
-          select: {
-            id: true,
-            favorite: true,
+        const findFirstStartedAt = Date.now();
+        const existing = await runPrisma(() =>
+          prisma.post.findFirst({
+            where: { id: postId, authorId: actorUserId },
+            select: {
+              id: true,
+              favorite: true,
+            },
+          })
+        );
+        findFirstMs = Date.now() - findFirstStartedAt;
+        if (!existing) {
+          throw new PostRepositoryError("NOT_FOUND", NOT_FOUND_MESSAGE);
+        }
+
+        if (existing.favorite === input.favorite) {
+          logDbPostRepositoryPerf({
+            action: "setFavorite",
+            ok: true,
+            totalMs: Date.now() - startedAt,
+            findFirstMs,
+            updateMs,
+            updateSkipped: true,
+            input: {
+              postId: input.postId,
+              favorite: input.favorite,
+            },
+          });
+          return { postId: existing.id, favorite: existing.favorite };
+        }
+
+        const updateStartedAt = Date.now();
+        const updated = await runPrisma(() =>
+          prisma.post.update({
+            where: { id: existing.id },
+            data: { favorite: input.favorite },
+            select: {
+              id: true,
+              favorite: true,
+            },
+          })
+        );
+        updateMs = Date.now() - updateStartedAt;
+        logDbPostRepositoryPerf({
+          action: "setFavorite",
+          ok: true,
+          totalMs: Date.now() - startedAt,
+          findFirstMs,
+          updateMs,
+          updateSkipped: false,
+          input: {
+            postId: input.postId,
+            favorite: input.favorite,
           },
-        })
-      );
-      if (!existing) {
-        throw new PostRepositoryError("NOT_FOUND", NOT_FOUND_MESSAGE);
-      }
-
-      if (existing.favorite === input.favorite) {
-        return { postId: existing.id, favorite: existing.favorite };
-      }
-
-      const updated = await runPrisma(() =>
-        prisma.post.update({
-          where: { id: existing.id },
-          data: { favorite: input.favorite },
-          select: {
-            id: true,
-            favorite: true,
+        });
+        return { postId: updated.id, favorite: updated.favorite };
+      } catch (error) {
+        const mapped = mapPrismaError(error);
+        logDbPostRepositoryPerf({
+          action: "setFavorite",
+          ok: false,
+          totalMs: Date.now() - startedAt,
+          findFirstMs,
+          updateMs,
+          input: {
+            postId: input.postId,
+            favorite: input.favorite,
           },
-        })
-      );
-      return { postId: updated.id, favorite: updated.favorite };
+          errorCode: mapped.code,
+        });
+        throw mapped;
+      }
     },
 
     async moveToTrash(input: MoveToTrashInput): Promise<void> {
