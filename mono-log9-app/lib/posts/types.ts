@@ -62,6 +62,7 @@ export type ValidatedUpdatePostDto = {
 export type SetFavoriteInput = {
   postId: string;
   favorite: boolean;
+  diagnosticsRequestId?: string;
 } & ActorGuardInput;
 
 export type FavoriteMutationResult = {

@@ -106,12 +106,36 @@ function resolveLogEnv(): "prod" | "stg" | "dev" | "unknown" {
   return "unknown";
 }
 
+function isSetFavoriteDbProbeEnabled(): boolean {
+  return process.env.POST_ACTION_SET_FAVORITE_DB_PROBE === "true";
+}
+
+function sumDefinedMs(values: Array<number | undefined>): number | undefined {
+  let total = 0;
+  let hasValue = false;
+  for (const value of values) {
+    if (typeof value !== "number") {
+      continue;
+    }
+    total += value;
+    hasValue = true;
+  }
+  return hasValue ? total : undefined;
+}
+
 function logDbPostRepositoryPerf(payload: {
   action: "setFavorite";
+  requestId?: string;
   ok: boolean;
   totalMs: number;
+  clientResolveMs?: number;
+  probeEnabled?: boolean;
+  probeMs?: number;
+  probeErrorCode?: string;
   findFirstMs?: number;
   updateMs?: number;
+  sqlMs?: number;
+  nonSqlMs?: number;
   updateSkipped?: boolean;
   input: Record<string, unknown>;
   errorCode?: string;
@@ -377,18 +401,36 @@ export function createDbPostRepository({ actorUserId }: CreateDbPostRepositoryIn
 
     async setFavorite(input: SetFavoriteInput): Promise<FavoriteMutationResult> {
       const startedAt = Date.now();
+      let probeMs: number | undefined;
+      let probeErrorCode: string | undefined;
       let findFirstMs: number | undefined;
       let updateMs: number | undefined;
+      let updateSkipped: boolean | undefined;
+      const probeEnabled = isSetFavoriteDbProbeEnabled();
+      const clientResolveStartedAt = Date.now();
       const prisma = (await getPrismaClient()) as {
         post: {
           findFirst: (args: Record<string, unknown>) => Promise<DbFavoriteRow | null>;
           update: (args: Record<string, unknown>) => Promise<DbFavoriteRow>;
         };
+        $queryRawUnsafe?: (query: string) => Promise<unknown>;
       };
+      const clientResolveMs = Date.now() - clientResolveStartedAt;
       try {
         const postId = ensurePostIdUuid(input.postId);
         if (typeof input.favorite !== "boolean") {
           throwValidationError();
+        }
+
+        if (probeEnabled && typeof prisma.$queryRawUnsafe === "function") {
+          const probeStartedAt = Date.now();
+          try {
+            await prisma.$queryRawUnsafe("SELECT 1");
+          } catch (probeError) {
+            probeErrorCode = mapPrismaError(probeError).code;
+          } finally {
+            probeMs = Date.now() - probeStartedAt;
+          }
         }
 
         const findFirstStartedAt = Date.now();
@@ -407,13 +449,23 @@ export function createDbPostRepository({ actorUserId }: CreateDbPostRepositoryIn
         }
 
         if (existing.favorite === input.favorite) {
+          updateSkipped = true;
+          const totalMs = Date.now() - startedAt;
+          const sqlMs = sumDefinedMs([probeMs, findFirstMs, updateMs]);
           logDbPostRepositoryPerf({
             action: "setFavorite",
+            requestId: input.diagnosticsRequestId,
             ok: true,
-            totalMs: Date.now() - startedAt,
+            totalMs,
+            clientResolveMs,
+            probeEnabled,
+            probeMs,
+            probeErrorCode,
             findFirstMs,
             updateMs,
-            updateSkipped: true,
+            sqlMs,
+            nonSqlMs: typeof sqlMs === "number" ? Math.max(0, totalMs - sqlMs) : undefined,
+            updateSkipped,
             input: {
               postId: input.postId,
               favorite: input.favorite,
@@ -434,13 +486,23 @@ export function createDbPostRepository({ actorUserId }: CreateDbPostRepositoryIn
           })
         );
         updateMs = Date.now() - updateStartedAt;
+        updateSkipped = false;
+        const totalMs = Date.now() - startedAt;
+        const sqlMs = sumDefinedMs([probeMs, findFirstMs, updateMs]);
         logDbPostRepositoryPerf({
           action: "setFavorite",
+          requestId: input.diagnosticsRequestId,
           ok: true,
-          totalMs: Date.now() - startedAt,
+          totalMs,
+          clientResolveMs,
+          probeEnabled,
+          probeMs,
+          probeErrorCode,
           findFirstMs,
           updateMs,
-          updateSkipped: false,
+          sqlMs,
+          nonSqlMs: typeof sqlMs === "number" ? Math.max(0, totalMs - sqlMs) : undefined,
+          updateSkipped,
           input: {
             postId: input.postId,
             favorite: input.favorite,
@@ -449,12 +511,22 @@ export function createDbPostRepository({ actorUserId }: CreateDbPostRepositoryIn
         return { postId: updated.id, favorite: updated.favorite };
       } catch (error) {
         const mapped = mapPrismaError(error);
+        const totalMs = Date.now() - startedAt;
+        const sqlMs = sumDefinedMs([probeMs, findFirstMs, updateMs]);
         logDbPostRepositoryPerf({
           action: "setFavorite",
+          requestId: input.diagnosticsRequestId,
           ok: false,
-          totalMs: Date.now() - startedAt,
+          totalMs,
+          clientResolveMs,
+          probeEnabled,
+          probeMs,
+          probeErrorCode,
           findFirstMs,
           updateMs,
+          sqlMs,
+          nonSqlMs: typeof sqlMs === "number" ? Math.max(0, totalMs - sqlMs) : undefined,
+          updateSkipped,
           input: {
             postId: input.postId,
             favorite: input.favorite,

@@ -390,7 +390,10 @@ export async function setFavoriteAction(
     });
 
     const repositoryStartedAt = Date.now();
-    const data = await repository.setFavorite(input);
+    const data = await repository.setFavorite({
+      ...input,
+      diagnosticsRequestId: requestId,
+    });
     repositoryMs = Date.now() - repositoryStartedAt;
 
     logPostActionPerf("setFavoriteAction", {
