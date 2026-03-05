@@ -696,7 +696,7 @@ describe("AuthedScreen", () => {
 
         return {
           ok: true,
-          data: { ...target },
+          data: { postId: target.id, favorite: target.favorite },
         };
       }
     );
@@ -1435,6 +1435,14 @@ describe("AuthedScreen", () => {
     await waitFor(() => {
       expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(1);
     });
+    const setQueryDataSpy = jest
+      .spyOn(queryClient, "setQueryData")
+      .mockImplementation((_, updater) => {
+        if (typeof updater === "function") {
+          (updater as (current: unknown) => unknown)(undefined);
+        }
+        return undefined;
+      });
 
     getPostActionsMock().setFavoriteAction.mockImplementationOnce(
       async ({ postId, favorite }: { postId: string; favorite: boolean }) => {
@@ -1452,10 +1460,7 @@ describe("AuthedScreen", () => {
         target.favorite = favorite;
         return {
           ok: true,
-          data: {
-            ...target,
-            mode: "note",
-          },
+          data: { postId: target.id, favorite: target.favorite },
         };
       }
     );
@@ -1474,8 +1479,144 @@ describe("AuthedScreen", () => {
       });
     });
     await waitFor(() => {
-      expect(getPostActionsMock().listPostsAction).toHaveBeenCalledTimes(2);
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["posts", { view: "memo", favoriteOnly: true }],
+        exact: true,
+      });
     });
+    setQueryDataSpy.mockRestore();
+  });
+
+  it("invalidates mode caches when target disappears before favorite response", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    const { queryClient } = renderAuthedScreen();
+    const invalidateSpy = jest.spyOn(queryClient, "invalidateQueries");
+
+    let resolveFavorite:
+      | ((value: { ok: true; data: { postId: string; favorite: boolean } }) => void)
+      | null = null;
+    getPostActionsMock().setFavoriteAction.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFavorite = resolve as (value: {
+            ok: true;
+            data: { postId: string; favorite: boolean };
+          }) => void;
+        })
+    );
+
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+    const memoCard = screen.getByText("買い物メモ: 牛乳、パン、トマト").closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "お気に入り" }));
+    await waitFor(() => {
+      expect(getPostActionsMock().setFavoriteAction).toHaveBeenCalledWith({
+        postId: "post-001",
+        favorite: true,
+      });
+    });
+
+    const emptyData = {
+      pageParams: [undefined],
+      pages: [
+        {
+          items: [],
+          hasNext: false,
+          nextCursor: null,
+        },
+      ],
+    };
+    queryClient.setQueryData(["posts", { view: "memo", favoriteOnly: false }], emptyData);
+    queryClient.setQueryData(["posts", { view: "memo", favoriteOnly: true }], emptyData);
+    const movedTarget = mutablePosts.find((post) => post.id === "post-001");
+    if (!movedTarget) {
+      throw new Error("target post not found");
+    }
+    movedTarget.trashedAt = "2026-02-17 10:01";
+
+    if (!resolveFavorite) {
+      throw new Error("favorite resolver not set");
+    }
+
+    await act(async () => {
+      resolveFavorite({
+        ok: true,
+        data: { postId: "post-001", favorite: true },
+      });
+    });
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["posts", { view: "memo", favoriteOnly: false }],
+        exact: true,
+      });
+    });
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["posts", { view: "memo", favoriteOnly: true }],
+        exact: true,
+      });
+    });
+
+    const memoDefault = queryClient.getQueryData<{
+      pages: Array<{ items: PostRecord[] }>;
+    }>(["posts", { view: "memo", favoriteOnly: false }]);
+    const memoDefaultIds = memoDefault?.pages.flatMap((page) => page.items.map((item) => item.id)) ?? [];
+    expect(memoDefaultIds).not.toContain("post-001");
+  });
+
+  it("does not update note cache when toggling memo favorite", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=memo");
+
+    const { queryClient } = renderAuthedScreen();
+    await screen.findByText("買い物メモ: 牛乳、パン、トマト");
+
+    queryClient.setQueryData(
+      ["posts", { view: "note", favoriteOnly: false }],
+      {
+        pageParams: [undefined],
+        pages: [
+          {
+            items: [],
+            hasNext: false,
+            nextCursor: null,
+          },
+        ],
+      }
+    );
+    const setQueryDataSpy = jest.spyOn(queryClient, "setQueryData");
+
+    const memoCard = screen.getByText("買い物メモ: 牛乳、パン、トマト").closest("article");
+    if (!memoCard) {
+      throw new Error("memo card not found");
+    }
+
+    await user.click(within(memoCard).getByRole("button", { name: "お気に入り" }));
+    await waitFor(() => {
+      expect(getPostActionsMock().setFavoriteAction).toHaveBeenCalledWith({
+        postId: "post-001",
+        favorite: true,
+      });
+    });
+
+    const calledKeys = setQueryDataSpy.mock.calls
+      .map(([key]) => key)
+      .filter((key) => Array.isArray(key)) as Array<Array<unknown>>;
+    expect(
+      calledKeys.some(
+        (key) =>
+          key[0] === "posts" &&
+          key[1] &&
+          typeof key[1] === "object" &&
+          (key[1] as { view?: unknown }).view === "note"
+      )
+    ).toBe(false);
   });
 
   it("removes an item immediately when unfavoriting in favorite-only mode", async () => {

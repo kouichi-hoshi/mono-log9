@@ -16,6 +16,7 @@ import type {
   DeleteTrashPostsInput,
   DeleteTrashPostsResult,
   EmptyTrashResult,
+  FavoriteMutationResult,
   ListPostsInput,
   ListPostsResult,
   MoveToTrashInput,
@@ -42,6 +43,8 @@ type DbPostRow = {
   trashedAt: Date | null;
   status: "active" | "trashed";
 };
+
+type DbFavoriteRow = Pick<DbPostRow, "id" | "favorite">;
 
 const INVALID_INPUT_MESSAGE = "入力内容に不備があります";
 const NOT_FOUND_MESSAGE = "対象が見つかりません";
@@ -332,11 +335,11 @@ export function createDbPostRepository({ actorUserId }: CreateDbPostRepositoryIn
       return toPostRecord(updated);
     },
 
-    async setFavorite(input: SetFavoriteInput): Promise<PostRecord> {
+    async setFavorite(input: SetFavoriteInput): Promise<FavoriteMutationResult> {
       const prisma = (await getPrismaClient()) as {
         post: {
-          findFirst: (args: Record<string, unknown>) => Promise<DbPostRow | null>;
-          update: (args: Record<string, unknown>) => Promise<DbPostRow>;
+          findFirst: (args: Record<string, unknown>) => Promise<DbFavoriteRow | null>;
+          update: (args: Record<string, unknown>) => Promise<DbFavoriteRow>;
         };
       };
       const postId = ensurePostIdUuid(input.postId);
@@ -347,7 +350,10 @@ export function createDbPostRepository({ actorUserId }: CreateDbPostRepositoryIn
       const existing = await runPrisma(() =>
         prisma.post.findFirst({
           where: { id: postId, authorId: actorUserId },
-          select: POST_SELECT,
+          select: {
+            id: true,
+            favorite: true,
+          },
         })
       );
       if (!existing) {
@@ -355,17 +361,20 @@ export function createDbPostRepository({ actorUserId }: CreateDbPostRepositoryIn
       }
 
       if (existing.favorite === input.favorite) {
-        return toPostRecord(existing);
+        return { postId: existing.id, favorite: existing.favorite };
       }
 
       const updated = await runPrisma(() =>
         prisma.post.update({
           where: { id: existing.id },
           data: { favorite: input.favorite },
-          select: POST_SELECT,
+          select: {
+            id: true,
+            favorite: true,
+          },
         })
       );
-      return toPostRecord(updated);
+      return { postId: updated.id, favorite: updated.favorite };
     },
 
     async moveToTrash(input: MoveToTrashInput): Promise<void> {

@@ -16,6 +16,7 @@ import type {
   DeleteTrashPostsInput,
   DeleteTrashPostsResult,
   EmptyTrashResult,
+  FavoriteMutationResult,
   ListPostsInput,
   ListPostsResult,
   MoveToTrashInput,
@@ -238,7 +239,7 @@ export const stubPostRepository: PostRepository = {
     return clonePost(target);
   },
 
-  async setFavorite(input: SetFavoriteInput): Promise<PostRecord> {
+  async setFavorite(input: SetFavoriteInput): Promise<FavoriteMutationResult> {
     ensureDevelopmentOnly();
 
     validatePostId(input.postId);
@@ -246,11 +247,11 @@ export const stubPostRepository: PostRepository = {
 
     const target = findPost(input.postId);
     if (target.favorite === input.favorite) {
-      return clonePost(target);
+      return { postId: target.id, favorite: target.favorite };
     }
 
     target.favorite = input.favorite;
-    return clonePost(target);
+    return { postId: target.id, favorite: target.favorite };
   },
 
   async moveToTrash(input: MoveToTrashInput): Promise<void> {

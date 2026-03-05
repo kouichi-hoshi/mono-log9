@@ -60,6 +60,11 @@ export type SetFavoriteInput = {
   favorite: boolean;
 };
 
+export type FavoriteMutationResult = {
+  postId: string;
+  favorite: boolean;
+};
+
 export type MoveToTrashInput = {
   postId: string;
 };
@@ -84,7 +89,7 @@ export type PostRepository = {
   listPosts: (input: ListPostsInput) => Promise<ListPostsResult>;
   createPost: (input: ValidatedCreatePostDto) => Promise<PostRecord>;
   updatePost: (input: ValidatedUpdatePostDto) => Promise<PostRecord>;
-  setFavorite: (input: SetFavoriteInput) => Promise<PostRecord>;
+  setFavorite: (input: SetFavoriteInput) => Promise<FavoriteMutationResult>;
   moveToTrash: (input: MoveToTrashInput) => Promise<void>;
   restoreFromTrash: (input: RestoreFromTrashInput) => Promise<void>;
   deleteTrashPosts: (input: DeleteTrashPostsInput) => Promise<DeleteTrashPostsResult>;

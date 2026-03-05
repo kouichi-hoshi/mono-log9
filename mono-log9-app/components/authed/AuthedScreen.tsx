@@ -490,6 +490,45 @@ export default function AuthedScreen({
     [queryClient]
   );
 
+  const getFavoriteModeConditions = React.useCallback(
+    (targetMode: ViewMode) =>
+      [
+        normalizePostsListCondition({ view: targetMode, favoriteOnly: false }),
+        normalizePostsListCondition({ view: targetMode, favoriteOnly: true }),
+      ] as const,
+    []
+  );
+
+  const findPostInModeCaches = React.useCallback((postId: string, targetMode: ViewMode): PostRecord | null => {
+    const conditions = getFavoriteModeConditions(targetMode);
+    for (const condition of conditions) {
+      const data = queryClient.getQueryData<PostsInfiniteData>(postsListQueryKey(condition));
+      if (!data) {
+        continue;
+      }
+
+      const found = flattenInfiniteItems(data).find((post) => post.id === postId);
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  }, [getFavoriteModeConditions, queryClient]);
+
+  const invalidateFavoriteModeCaches = React.useCallback(
+    (targetMode: ViewMode) => {
+      const conditions = getFavoriteModeConditions(targetMode);
+      for (const condition of conditions) {
+        void queryClient.invalidateQueries({
+          queryKey: postsListQueryKey(condition),
+          exact: true,
+        });
+      }
+    },
+    [getFavoriteModeConditions, queryClient]
+  );
+
   const findInCachedPostLists = React.useCallback((postId: string): PostRecord | null => {
     const entries = queryClient.getQueriesData<PostsInfiniteData>({ queryKey: ["posts"] });
     for (const [, data] of entries) {
@@ -608,26 +647,19 @@ export default function AuthedScreen({
     }
   }, [isTrashView]);
 
-  const syncFavoriteInCurrentViewCaches = React.useCallback(
+  const syncFavoriteInModeCaches = React.useCallback(
     (updated: PostRecord) => {
-      const entries = queryClient.getQueriesData<PostsInfiniteData>({ queryKey: ["posts"] });
+      const targetConditions = getFavoriteModeConditions(updated.mode);
       let syncedCount = 0;
 
-      for (const [key, data] of entries) {
-        if (!data) {
-          continue;
-        }
-
-        const condition = parsePostsListConditionFromQueryKey(key);
-        if (!condition || condition.view !== updated.mode) {
-          continue;
-        }
-
-        queryClient.setQueryData<PostsInfiniteData>(key, (current) => {
+      for (const condition of targetConditions) {
+        const targetQueryKey = postsListQueryKey(condition);
+        queryClient.setQueryData<PostsInfiniteData>(targetQueryKey, (current) => {
           if (!current) {
             return current;
           }
 
+          syncedCount += 1;
           const nextItems = applyFavoriteMutation(
             {
               condition,
@@ -637,14 +669,15 @@ export default function AuthedScreen({
           );
           return rebuildInfiniteData(current, nextItems);
         });
-        syncedCount += 1;
       }
 
-      if (syncedCount === 0) {
-        void queryClient.invalidateQueries({ queryKey: queryKey, exact: true });
+      if (syncedCount > 0) {
+        return;
       }
+
+      invalidateFavoriteModeCaches(updated.mode);
     },
-    [queryClient, queryKey]
+    [getFavoriteModeConditions, invalidateFavoriteModeCaches, queryClient]
   );
 
   const handleToggleFavorite = React.useCallback(
@@ -664,9 +697,25 @@ export default function AuthedScreen({
         return;
       }
 
-      syncFavoriteInCurrentViewCaches(result.data);
+      const latest = findPostInModeCaches(postId, target.mode);
+      if (!latest) {
+        invalidateFavoriteModeCaches(target.mode);
+        return;
+      }
+
+      const updatedPost: PostRecord = {
+        ...latest,
+        favorite: result.data.favorite,
+      };
+      syncFavoriteInModeCaches(updatedPost);
     },
-    [handleActionError, syncFavoriteInCurrentViewCaches, visibleItems]
+    [
+      findPostInModeCaches,
+      handleActionError,
+      invalidateFavoriteModeCaches,
+      syncFavoriteInModeCaches,
+      visibleItems,
+    ]
   );
 
   const handleOpenNoteCreate = React.useCallback(() => {

@@ -137,6 +137,10 @@ describe("postActions", () => {
       favorite: false,
       createdAt: "2026-02-16 10:00",
     });
+    getRepositoryMock().setFavorite.mockResolvedValue({
+      postId: POST_ID,
+      favorite: true,
+    });
     getRepositoryMock().moveToTrash.mockResolvedValue(undefined);
     getRepositoryMock().restoreFromTrash.mockResolvedValue(undefined);
     getRepositoryMock().deleteTrashPosts.mockResolvedValue({ deletedPostIds: [TRASH_POST_ID] });
@@ -158,6 +162,10 @@ describe("postActions", () => {
       postId: POST_ID,
       title: "b",
       content: createDocFromPlainText("b"),
+    });
+    await expect(setFavoriteAction({ postId: POST_ID, favorite: true })).resolves.toEqual({
+      ok: true,
+      data: { postId: POST_ID, favorite: true },
     });
     await expect(moveToTrashAction({ postId: POST_ID })).resolves.toEqual({
       ok: true,

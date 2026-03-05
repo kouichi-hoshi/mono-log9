@@ -215,4 +215,70 @@ describe("dbPostRepository", () => {
     expect(findFirst).not.toHaveBeenCalled();
     expect(findMany).not.toHaveBeenCalled();
   });
+
+  it("returns compact favorite result without update when favorite is unchanged", async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      favorite: true,
+    });
+    const update = jest.fn();
+    (getPrismaClient as jest.Mock).mockResolvedValue({
+      post: { findFirst, update },
+    });
+    const repository = createDbPostRepository({ actorUserId });
+
+    const result = await repository.setFavorite({
+      postId: "550e8400-e29b-41d4-a716-446655440001",
+      favorite: true,
+    });
+
+    expect(result).toEqual({
+      postId: "550e8400-e29b-41d4-a716-446655440001",
+      favorite: true,
+    });
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        id: "550e8400-e29b-41d4-a716-446655440001",
+        authorId: actorUserId,
+      },
+      select: {
+        id: true,
+        favorite: true,
+      },
+    });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("updates favorite and returns compact favorite result", async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      favorite: false,
+    });
+    const update = jest.fn().mockResolvedValue({
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      favorite: true,
+    });
+    (getPrismaClient as jest.Mock).mockResolvedValue({
+      post: { findFirst, update },
+    });
+    const repository = createDbPostRepository({ actorUserId });
+
+    const result = await repository.setFavorite({
+      postId: "550e8400-e29b-41d4-a716-446655440001",
+      favorite: true,
+    });
+
+    expect(result).toEqual({
+      postId: "550e8400-e29b-41d4-a716-446655440001",
+      favorite: true,
+    });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "550e8400-e29b-41d4-a716-446655440001" },
+      data: { favorite: true },
+      select: {
+        id: true,
+        favorite: true,
+      },
+    });
+  });
 });

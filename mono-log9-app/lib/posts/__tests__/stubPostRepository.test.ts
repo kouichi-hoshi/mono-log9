@@ -229,6 +229,10 @@ describe("stubPostRepository", () => {
     });
 
     expect(favoriteBefore).toEqual(favoriteAgain);
+    expect(favoriteBefore).toEqual({
+      postId: memo001,
+      favorite: false,
+    });
   });
 
   it("updates trashedAt on move/restore with idempotent behavior", async () => {

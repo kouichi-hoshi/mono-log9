@@ -20,6 +20,7 @@ import type {
   DeleteTrashPostsInput,
   DeleteTrashPostsResult,
   EmptyTrashResult,
+  FavoriteMutationResult,
   ListPostsInput,
   ListPostsResult,
   MoveToTrashInput,
@@ -143,7 +144,9 @@ export async function updatePostAction(input: UpdatePostInput): Promise<ActionRe
   }
 }
 
-export async function setFavoriteAction(input: SetFavoriteInput): Promise<ActionResult<PostRecord>> {
+export async function setFavoriteAction(
+  input: SetFavoriteInput
+): Promise<ActionResult<FavoriteMutationResult>> {
   try {
     const repository = await resolveRepositoryForAction();
     const data = await repository.setFavorite(input);
