@@ -43,6 +43,55 @@ export type ActionResult<T> =
 const E2E_SCENARIO_HEADER = "x-e2e-scenario";
 const E2E_LIST_INITIAL_FAIL_ONCE = "list-initial-fail-once";
 const consumedE2EScenarioKeys = new Set<string>();
+const SLOW_LIST_ACTION_THRESHOLD_MS = 300;
+
+function createRequestId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function resolveLogEnv(): "prod" | "stg" | "dev" | "unknown" {
+  const raw = (
+    process.env.APP_ENV ??
+    process.env.VERCEL_ENV ??
+    process.env.NODE_ENV ??
+    "unknown"
+  ).toLowerCase();
+
+  if (raw === "production" || raw === "prod") {
+    return "prod";
+  }
+  if (raw === "preview" || raw === "stg" || raw === "stage" || raw === "staging") {
+    return "stg";
+  }
+  if (raw === "development" || raw === "dev") {
+    return "dev";
+  }
+  return "unknown";
+}
+
+function logPostActionPerf(
+  action: string,
+  payload: {
+    env: "prod" | "stg" | "dev" | "unknown";
+    requestId: string;
+    repositoryMode: "stub" | "authjs";
+    ok: boolean;
+    totalMs: number;
+    resolveRepositoryMs?: number;
+    repositoryMs?: number;
+    input: Record<string, unknown>;
+    errorCode?: PostErrorCode;
+  }
+): void {
+  console.info(
+    JSON.stringify({
+      event: "post_action_perf",
+      action,
+      ...payload,
+      timestamp: new Date().toISOString(),
+    })
+  );
+}
 
 function toErrorResult(error: unknown): ActionResult<never> {
   // stg/Preview のみ: デバッグ用ログ（VERCEL_ENV=preview は Preview デプロイで自動設定）
@@ -108,14 +157,64 @@ async function resolveRepositoryForAction(): Promise<PostRepository> {
 }
 
 export async function listPostsAction(input: ListPostsInput): Promise<ActionResult<ListPostsResult>> {
+  const requestId = createRequestId();
+  const env = resolveLogEnv();
+  const actionStartedAt = Date.now();
+  const repositoryMode = getStubPostsEnabled() ? "stub" : "authjs";
+  let resolveRepositoryMs: number | undefined;
+  let repositoryMs: number | undefined;
+
   try {
     const validated = toValidatedListPostsInput(input);
     await maybeFailListPostsOnceForE2E(validated);
+
+    const resolveRepositoryStartedAt = Date.now();
     const repository = await resolveRepositoryForAction();
+    resolveRepositoryMs = Date.now() - resolveRepositoryStartedAt;
+
+    const repositoryStartedAt = Date.now();
     const data = await repository.listPosts(validated);
+    repositoryMs = Date.now() - repositoryStartedAt;
+
+    const totalMs = Date.now() - actionStartedAt;
+    if (totalMs >= SLOW_LIST_ACTION_THRESHOLD_MS) {
+      logPostActionPerf("listPostsAction", {
+        env,
+        requestId,
+        repositoryMode,
+        ok: true,
+        totalMs,
+        resolveRepositoryMs,
+        repositoryMs,
+        input: {
+          view: validated.view,
+          favoriteOnly: validated.favoriteOnly,
+          hasCursor: typeof validated.cursor !== "undefined" && validated.cursor !== null,
+          limit: validated.limit ?? null,
+        },
+      });
+    }
+
     return { ok: true, data };
   } catch (error) {
-    return toErrorResult(error);
+    const result = toErrorResult(error);
+    logPostActionPerf("listPostsAction", {
+      env,
+      requestId,
+      repositoryMode,
+      ok: false,
+      totalMs: Date.now() - actionStartedAt,
+      resolveRepositoryMs,
+      repositoryMs,
+      input: {
+        view: input.view,
+        favoriteOnly: input.favoriteOnly,
+        hasCursor: typeof input.cursor !== "undefined" && input.cursor !== null,
+        limit: input.limit ?? null,
+      },
+      errorCode: result.error.code,
+    });
+    return result;
   }
 }
 
@@ -147,12 +246,54 @@ export async function updatePostAction(input: UpdatePostInput): Promise<ActionRe
 export async function setFavoriteAction(
   input: SetFavoriteInput
 ): Promise<ActionResult<FavoriteMutationResult>> {
+  const requestId = createRequestId();
+  const env = resolveLogEnv();
+  const actionStartedAt = Date.now();
+  const repositoryMode = getStubPostsEnabled() ? "stub" : "authjs";
+  let resolveRepositoryMs: number | undefined;
+  let repositoryMs: number | undefined;
+
   try {
+    const resolveRepositoryStartedAt = Date.now();
     const repository = await resolveRepositoryForAction();
+    resolveRepositoryMs = Date.now() - resolveRepositoryStartedAt;
+
+    const repositoryStartedAt = Date.now();
     const data = await repository.setFavorite(input);
+    repositoryMs = Date.now() - repositoryStartedAt;
+
+    logPostActionPerf("setFavoriteAction", {
+      env,
+      requestId,
+      repositoryMode,
+      ok: true,
+      totalMs: Date.now() - actionStartedAt,
+      resolveRepositoryMs,
+      repositoryMs,
+      input: {
+        postId: input.postId,
+        favorite: input.favorite,
+      },
+    });
+
     return { ok: true, data };
   } catch (error) {
-    return toErrorResult(error);
+    const result = toErrorResult(error);
+    logPostActionPerf("setFavoriteAction", {
+      env,
+      requestId,
+      repositoryMode,
+      ok: false,
+      totalMs: Date.now() - actionStartedAt,
+      resolveRepositoryMs,
+      repositoryMs,
+      input: {
+        postId: input.postId,
+        favorite: input.favorite,
+      },
+      errorCode: result.error.code,
+    });
+    return result;
   }
 }
 
