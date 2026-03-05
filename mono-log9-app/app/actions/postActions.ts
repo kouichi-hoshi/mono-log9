@@ -52,6 +52,10 @@ const E2E_LIST_INITIAL_FAIL_ONCE = "list-initial-fail-once";
 const consumedE2EScenarioKeys = new Set<string>();
 const SLOW_LIST_ACTION_THRESHOLD_MS = 300;
 
+function isPostActionPerfLogEnabled(): boolean {
+  return process.env.POST_ACTION_PERF_LOG_ENABLED !== "false";
+}
+
 function createRequestId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -94,6 +98,9 @@ function logPostActionPerf(
     errorCode?: PostErrorCode;
   }
 ): void {
+  if (!isPostActionPerfLogEnabled()) {
+    return;
+  }
   console.info(
     JSON.stringify({
       event: "post_action_perf",

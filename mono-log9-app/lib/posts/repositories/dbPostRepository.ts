@@ -110,6 +110,10 @@ function isSetFavoriteDbProbeEnabled(): boolean {
   return process.env.POST_ACTION_SET_FAVORITE_DB_PROBE === "true";
 }
 
+function isDbPostRepositoryPerfLogEnabled(): boolean {
+  return process.env.DB_POST_REPOSITORY_PERF_LOG_ENABLED !== "false";
+}
+
 function sumDefinedMs(values: Array<number | undefined>): number | undefined {
   let total = 0;
   let hasValue = false;
@@ -140,6 +144,9 @@ function logDbPostRepositoryPerf(payload: {
   input: Record<string, unknown>;
   errorCode?: string;
 }): void {
+  if (!isDbPostRepositoryPerfLogEnabled()) {
+    return;
+  }
   console.info(
     JSON.stringify({
       event: "db_post_repository_perf",

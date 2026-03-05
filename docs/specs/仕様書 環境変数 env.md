@@ -34,6 +34,9 @@ tags:
 | TEST_DB_HOST_ALLOWLIST | 未使用            | 例: `localhost,127.0.0.1` | テスト専用。`DATABASE_URL` の host がこの許可リストに含まれない場合は fail-fast で停止する |
 | TEST_DB_NAME_ALLOWLIST | 未使用            | 例: `mono_log9_test,mono_log9_e2e_test` | テスト専用。`DATABASE_URL` の DB 名がこの許可リストに含まれない場合は fail-fast で停止する |
 | RUN_REAL_E2E | 未使用            | Playwright 実DB E2E 実行時のみ `true` | テスト専用。`playwright` の real project はこのフラグが `true` のときだけ有効化する |
+| POST_ACTION_PERF_LOG_ENABLED | `true`（未設定時） | `true` / `false` | サーバー処理計測ログ `post_action_perf` の出力制御。`false` の場合は出力停止 |
+| DB_POST_REPOSITORY_PERF_LOG_ENABLED | `true`（未設定時） | `true` / `false` | DB詳細計測ログ `db_post_repository_perf` の出力制御。`false` の場合は出力停止 |
+| POST_ACTION_SET_FAVORITE_DB_PROBE | `false`（未設定時） | `true` / `false` | `setFavorite` 実行時に `SELECT 1` プローブ計測を有効化。region/ネットワーク切り分け用 |
 
 ## 項番26時点の運用補足
 
