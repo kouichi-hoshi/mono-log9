@@ -5,6 +5,7 @@ import { PostRepositoryError } from "@/lib/posts/errors";
 
 type SessionUserWithGoogleSub = {
   googleSub?: string | null;
+  actorUserId?: string | null;
   email?: string | null;
   name?: string | null;
   image?: string | null;
@@ -25,9 +26,18 @@ export function getGoogleSubFromSession(session: Session | null): string {
   return googleSub;
 }
 
-export async function ensureActorUserFromSession(session: Session | null): Promise<string> {
+export function getActorUserIdFromSession(session: Session | null): string | null {
   const user = session?.user as SessionUserWithGoogleSub | undefined;
-  const googleSub = getGoogleSubFromSession(session);
+  const actorUserId = user?.actorUserId?.trim();
+  return actorUserId ? actorUserId : null;
+}
+
+export async function upsertActorUserByGoogleSub(input: {
+  googleSub: string;
+  email?: string | null;
+  name?: string | null;
+  image?: string | null;
+}): Promise<string> {
   const prisma = (await getPrismaClient()) as {
     user: {
       upsert: (args: Record<string, unknown>) => Promise<{ id: string }>;
@@ -35,27 +45,43 @@ export async function ensureActorUserFromSession(session: Session | null): Promi
   };
 
   const update: Record<string, unknown> = {};
-  if (typeof user?.email !== "undefined" && user.email !== null) {
-    update.email = user.email;
+  if (typeof input.email !== "undefined" && input.email !== null) {
+    update.email = input.email;
   }
-  if (typeof user?.name !== "undefined" && user.name !== null) {
-    update.name = user.name;
+  if (typeof input.name !== "undefined" && input.name !== null) {
+    update.name = input.name;
   }
-  if (typeof user?.image !== "undefined" && user.image !== null) {
-    update.image = user.image;
+  if (typeof input.image !== "undefined" && input.image !== null) {
+    update.image = input.image;
   }
 
   const actor = await prisma.user.upsert({
-    where: { googleSub },
+    where: { googleSub: input.googleSub },
     create: {
-      googleSub,
-      email: user?.email ?? null,
-      name: user?.name ?? null,
-      image: user?.image ?? null,
+      googleSub: input.googleSub,
+      email: input.email ?? null,
+      name: input.name ?? null,
+      image: input.image ?? null,
     },
     update,
     select: { id: true },
   });
 
   return actor.id;
+}
+
+export async function ensureActorUserFromSession(session: Session | null): Promise<string> {
+  const user = session?.user as SessionUserWithGoogleSub | undefined;
+  const actorUserId = getActorUserIdFromSession(session);
+  if (actorUserId) {
+    return actorUserId;
+  }
+
+  const googleSub = getGoogleSubFromSession(session);
+  return upsertActorUserByGoogleSub({
+    googleSub,
+    email: user?.email,
+    name: user?.name,
+    image: user?.image,
+  });
 }

@@ -40,6 +40,7 @@ function createContext(input: {
     condition: {
       view: input.view,
       favoriteOnly: input.favoriteOnly,
+      actorScope: "stub",
     },
     items: input.items,
   };

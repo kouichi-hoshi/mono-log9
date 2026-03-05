@@ -20,12 +20,14 @@ export class PostsListQueryError extends Error {
 
 type UsePostsInfiniteQueryOptions = {
   enabled?: boolean;
+  expectedActorUserId?: string;
 };
 
 export function usePostsInfiniteQuery(
   condition: PostsListCondition,
   options: UsePostsInfiniteQueryOptions = {}
 ) {
+  const expectedActorUserId = options.expectedActorUserId;
   return useInfiniteQuery<ListPostsResult, PostsListQueryError, PostsInfiniteData, ReturnType<typeof postsListQueryKey>, string | undefined>({
     queryKey: postsListQueryKey(condition),
     enabled: options.enabled ?? true,
@@ -41,6 +43,7 @@ export function usePostsInfiniteQuery(
         favoriteOnly: condition.favoriteOnly,
         limit: PAGE_SIZE,
         cursor: pageParam,
+        expectedActorUserId,
       });
 
       if (!result.ok) {

@@ -40,7 +40,11 @@ import {
 } from "@/lib/authedQueryState";
 import { buildCallbackPathFromQueryString } from "@/lib/auth/callbackUrl";
 import { signOutToRoot } from "@/lib/auth/client";
-import { cleanupAfterLogout } from "@/lib/auth/logoutCleanup";
+import {
+  cleanupAfterLogout,
+  clearPostsQueryCache,
+  clearScrollRestorationStorage,
+} from "@/lib/auth/logoutCleanup";
 import {
   clearReloginDraft,
   loadReloginDraft,
@@ -121,6 +125,7 @@ function parsePostsListConditionFromQueryKey(key: QueryKey): PostsListCondition 
 
   const view = (condition as { view?: unknown }).view;
   const favoriteOnly = (condition as { favoriteOnly?: unknown }).favoriteOnly;
+  const actorScopeRaw = (condition as { actorScope?: unknown }).actorScope;
   if (view !== "memo" && view !== "note" && view !== "trash") {
     return null;
   }
@@ -129,7 +134,11 @@ function parsePostsListConditionFromQueryKey(key: QueryKey): PostsListCondition 
     return null;
   }
 
-  return normalizePostsListCondition({ view, favoriteOnly });
+  const actorScope =
+    typeof actorScopeRaw === "string" && actorScopeRaw.trim().length > 0
+      ? actorScopeRaw
+      : "legacy";
+  return normalizePostsListCondition({ view, favoriteOnly, actorScope });
 }
 
 export default function AuthedScreen({
@@ -141,6 +150,14 @@ export default function AuthedScreen({
   const queryClient = useQueryClient();
 
   const queryString = searchParams.toString();
+  const expectedActorUserId =
+    authMode === "authjs" && typeof user.actorUserId === "string" && user.actorUserId.trim().length > 0
+      ? user.actorUserId.trim()
+      : undefined;
+  const actorScope = expectedActorUserId ? `actor:${expectedActorUserId}` : authMode === "authjs" ? "actor:missing" : "stub";
+  const expectedActorUserIdRef = useLatestRef(expectedActorUserId);
+  const lastSessionCheckAtRef = React.useRef(0);
+  const isSessionCheckInFlightRef = React.useRef(false);
   const rawNormalizedQuery = React.useMemo(() => normalizeAuthedQuery(queryString), [queryString]);
   const loginCallbackUrl = React.useMemo(
     () =>
@@ -276,11 +293,15 @@ export default function AuthedScreen({
       normalizePostsListCondition({
         view: normalizedQuery.state.view,
         favoriteOnly,
+        actorScope,
       }),
-    [favoriteOnly, normalizedQuery.state.view]
+    [actorScope, favoriteOnly, normalizedQuery.state.view]
   );
   const queryKey = React.useMemo(() => postsListQueryKey(listCondition), [listCondition]);
-  const listQuery = usePostsInfiniteQuery(listCondition, { enabled: !rawNormalizedQuery.changed });
+  const listQuery = usePostsInfiniteQuery(listCondition, {
+    enabled: !rawNormalizedQuery.changed,
+    expectedActorUserId,
+  });
   const visibleItems = React.useMemo(() => flattenInfiniteItems(listQuery.data), [listQuery.data]);
   const posts = React.useMemo(() => (isTrashView ? [] : visibleItems), [isTrashView, visibleItems]);
   const trashPosts = React.useMemo(() => (isTrashView ? visibleItems : []), [isTrashView, visibleItems]);
@@ -493,10 +514,18 @@ export default function AuthedScreen({
   const getFavoriteModeConditions = React.useCallback(
     (targetMode: ViewMode) =>
       [
-        normalizePostsListCondition({ view: targetMode, favoriteOnly: false }),
-        normalizePostsListCondition({ view: targetMode, favoriteOnly: true }),
+        normalizePostsListCondition({
+          view: targetMode,
+          favoriteOnly: false,
+          actorScope: listCondition.actorScope,
+        }),
+        normalizePostsListCondition({
+          view: targetMode,
+          favoriteOnly: true,
+          actorScope: listCondition.actorScope,
+        }),
       ] as const,
-    []
+    [listCondition.actorScope]
   );
 
   const findPostInModeCaches = React.useCallback((postId: string, targetMode: ViewMode): PostRecord | null => {
@@ -619,6 +648,74 @@ export default function AuthedScreen({
     [applyOptimisticView, effectiveQueryStringRef, hasUnsavedEdits, runOrConfirmRef]
   );
 
+  React.useEffect(() => {
+    if (authMode !== "authjs") {
+      return;
+    }
+    if (!expectedActorUserId) {
+      return;
+    }
+
+    const checkSessionActor = async () => {
+      const now = Date.now();
+      if (now - lastSessionCheckAtRef.current < 10_000) {
+        return;
+      }
+      if (isSessionCheckInFlightRef.current) {
+        return;
+      }
+
+      lastSessionCheckAtRef.current = now;
+      isSessionCheckInFlightRef.current = true;
+      try {
+        const response = await fetch("/api/auth/session", {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!response.ok) {
+          return;
+        }
+
+        const body = (await response.json()) as {
+          user?: { actorUserId?: string | null } | null;
+        };
+        const currentActorUserId =
+          typeof body?.user?.actorUserId === "string" ? body.user.actorUserId.trim() : "";
+        const expected = expectedActorUserIdRef.current ?? "";
+        if (!currentActorUserId || currentActorUserId !== expected) {
+          clearPostsQueryCache(queryClient);
+          clearScrollRestorationStorage();
+          handleActionError({
+            code: "UNAUTHORIZED",
+            message: "ログイン状態が変更されました。再ログインしてください",
+          });
+        }
+      } catch {
+        // Ignore transient session polling failures.
+      } finally {
+        isSessionCheckInFlightRef.current = false;
+      }
+    };
+
+    const onFocus = () => {
+      void checkSessionActor();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      void checkSessionActor();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [authMode, expectedActorUserId, expectedActorUserIdRef, handleActionError, queryClient]);
+
   const handleTrashClick = React.useCallback(() => {
     const next = buildQueryForViewChange(effectiveQueryStringRef.current, "trash");
     if (!next.changed) {
@@ -690,6 +787,7 @@ export default function AuthedScreen({
       const result = await setFavoriteAction({
         postId,
         favorite: !target.favorite,
+        expectedActorUserId,
       });
 
       if (!result.ok) {
@@ -710,6 +808,7 @@ export default function AuthedScreen({
       syncFavoriteInModeCaches(updatedPost);
     },
     [
+      expectedActorUserId,
       findPostInModeCaches,
       handleActionError,
       invalidateFavoriteModeCaches,
@@ -807,6 +906,7 @@ export default function AuthedScreen({
       const result = await createPostAction({
         mode: "memo",
         content: createDocFromPlainText(value),
+        expectedActorUserId,
       });
 
       if (!result.ok) {
@@ -819,7 +919,7 @@ export default function AuthedScreen({
       toast("保存しました");
       return true;
     },
-    [handleActionError, upsertPostInVisibleList]
+    [expectedActorUserId, handleActionError, upsertPostInVisibleList]
   );
 
   const handleMemoEditSaveStub = React.useCallback(
@@ -827,6 +927,7 @@ export default function AuthedScreen({
       const result = await updatePostAction({
         postId,
         content: createDocFromPlainText(value),
+        expectedActorUserId,
       });
 
       if (!result.ok) {
@@ -841,7 +942,7 @@ export default function AuthedScreen({
       toast("更新しました");
       return true;
     },
-    [handleActionError, upsertPostInVisibleList]
+    [expectedActorUserId, handleActionError, upsertPostInVisibleList]
   );
 
   const handleMemoEditCancel = React.useCallback(() => {
@@ -861,11 +962,13 @@ export default function AuthedScreen({
               postId: editingNotePostId,
               title: draft.title,
               content: serializedContent,
+              expectedActorUserId,
             })
           : await createPostAction({
               mode: "note",
               title: draft.title,
               content: serializedContent,
+              expectedActorUserId,
             });
 
       if (!result.ok) {
@@ -880,7 +983,7 @@ export default function AuthedScreen({
 
       return true;
     },
-    [editingNotePostId, handleActionError, noteModalMode, upsertPostInVisibleList]
+    [editingNotePostId, expectedActorUserId, handleActionError, noteModalMode, upsertPostInVisibleList]
   );
 
   const handleToggleTrashPostSelection = React.useCallback((postId: string, checked: boolean) => {
@@ -929,7 +1032,7 @@ export default function AuthedScreen({
 
     if (deleteDialogMode === "selected") {
       const postIds = Array.from(selectedTrashPostIds);
-      const result = await deleteTrashPostsAction({ postIds });
+      const result = await deleteTrashPostsAction({ postIds, expectedActorUserId });
       if (!result.ok) {
         handleActionError(result.error);
         setDeleteDialogErrorMessage(result.error.message);
@@ -951,7 +1054,7 @@ export default function AuthedScreen({
       return;
     }
 
-    const result = await emptyTrashAction();
+    const result = await emptyTrashAction({ expectedActorUserId });
     if (!result.ok) {
       handleActionError(result.error);
       setDeleteDialogErrorMessage(result.error.message);
@@ -973,6 +1076,7 @@ export default function AuthedScreen({
   }, [
     deleteDialogMode,
     handleActionError,
+    expectedActorUserId,
     isDeleteSubmitting,
     removePostsFromAllCaches,
     selectedTrashPostIds,
@@ -1037,7 +1141,7 @@ export default function AuthedScreen({
 
   const handleMoveToTrash = React.useCallback(
     async (postId: string) => {
-      const result = await moveToTrashAction({ postId });
+      const result = await moveToTrashAction({ postId, expectedActorUserId });
       if (!result.ok) {
         handleActionError(result.error);
         return;
@@ -1075,12 +1179,19 @@ export default function AuthedScreen({
       }
       toast("投稿を削除しました");
     },
-    [editingMemoPostId, findInCachedPostLists, handleActionError, updateAllCachedPostLists, visibleItems]
+    [
+      editingMemoPostId,
+      expectedActorUserId,
+      findInCachedPostLists,
+      handleActionError,
+      updateAllCachedPostLists,
+      visibleItems,
+    ]
   );
 
   const handleRestoreTrashPostStub = React.useCallback(
     async (postId: string) => {
-      const result = await restoreFromTrashAction({ postId });
+      const result = await restoreFromTrashAction({ postId, expectedActorUserId });
       if (!result.ok) {
         handleActionError(result.error);
         return;
@@ -1115,12 +1226,12 @@ export default function AuthedScreen({
       });
       toast("投稿を復元しました");
     },
-    [findInCachedPostLists, handleActionError, updateAllCachedPostLists, visibleItems]
+    [expectedActorUserId, findInCachedPostLists, handleActionError, updateAllCachedPostLists, visibleItems]
   );
 
   const handlePermanentDeleteTrashPost = React.useCallback(
     async (postId: string) => {
-      const result = await deleteTrashPostsAction({ postIds: [postId] });
+      const result = await deleteTrashPostsAction({ postIds: [postId], expectedActorUserId });
       if (!result.ok) {
         handleActionError(result.error);
         return;
@@ -1134,7 +1245,7 @@ export default function AuthedScreen({
       });
       toast("投稿を完全に削除しました");
     },
-    [handleActionError, removePostsFromAllCaches]
+    [expectedActorUserId, handleActionError, removePostsFromAllCaches]
   );
 
   return (

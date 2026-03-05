@@ -1,4 +1,8 @@
-import { ensureActorUserFromSession, getGoogleSubFromSession } from "@/lib/auth/actorUser";
+import {
+  ensureActorUserFromSession,
+  getActorUserIdFromSession,
+  getGoogleSubFromSession,
+} from "@/lib/auth/actorUser";
 import { getPrismaClient } from "@/lib/db/prisma";
 
 jest.mock("@/lib/db/prisma", () => ({
@@ -22,6 +26,35 @@ describe("actorUser", () => {
         expires: "2099-01-01T00:00:00.000Z",
       })
     ).rejects.toThrow("ログインが必要です");
+  });
+
+  it("reads actorUserId from session", () => {
+    expect(
+      getActorUserIdFromSession({
+        user: {
+          actorUserId: "user-abc",
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      })
+    ).toBe("user-abc");
+  });
+
+  it("uses session actorUserId without DB access", async () => {
+    const upsert = jest.fn().mockResolvedValue({ id: "user-001" });
+    (getPrismaClient as jest.Mock).mockResolvedValue({
+      user: { upsert },
+    });
+
+    const actorUserId = await ensureActorUserFromSession({
+      user: {
+        googleSub: "google-sub-1",
+        actorUserId: "user-from-session",
+      },
+      expires: "2099-01-01T00:00:00.000Z",
+    });
+
+    expect(actorUserId).toBe("user-from-session");
+    expect(upsert).not.toHaveBeenCalled();
   });
 
   it("upserts user by googleSub and returns actor user id", async () => {

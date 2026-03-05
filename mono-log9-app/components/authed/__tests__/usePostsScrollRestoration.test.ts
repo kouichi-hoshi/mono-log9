@@ -27,6 +27,7 @@ function getScrollRestorationMock() {
 const memoListCondition: PostsListCondition = {
   view: "memo",
   favoriteOnly: false,
+  actorScope: "stub",
 };
 
 describe("usePostsScrollRestoration", () => {

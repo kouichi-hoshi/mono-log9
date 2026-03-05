@@ -6,6 +6,7 @@ export type AuthedUser = {
   name: string;
   handle: string;
   imageUrl?: string | null;
+  actorUserId?: string | null;
 };
 
 export type StubUser = AuthedUser;

@@ -29,12 +29,18 @@ function toUserHandle(email: string | null | undefined): string {
 }
 
 function toAuthedUser(
-  user: { name?: string | null; email?: string | null; image?: string | null } | undefined
+  user: {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+    actorUserId?: string | null;
+  } | undefined
 ): AuthedUser {
   return {
     name: user?.name?.trim() || stubUser.name,
     handle: toUserHandle(user?.email),
     imageUrl: user?.image ?? null,
+    actorUserId: user?.actorUserId ?? null,
   };
 }
 

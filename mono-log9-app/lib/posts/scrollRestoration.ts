@@ -4,7 +4,7 @@ const SCROLL_KEY_PREFIX = "mono-log:scroll:v1";
 const HISTORY_ENTRY_ID_KEY = "__mono_log_scroll_entry_id__";
 
 export function getScrollStorageKey(condition: PostsListCondition): string {
-  return `${SCROLL_KEY_PREFIX}:${condition.view}:${condition.favoriteOnly ? "1" : "0"}`;
+  return `${SCROLL_KEY_PREFIX}:${condition.actorScope}:${condition.view}:${condition.favoriteOnly ? "1" : "0"}`;
 }
 
 function createHistoryEntryId(): string {

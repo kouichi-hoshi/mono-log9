@@ -4,6 +4,10 @@ export type PostMode = "memo" | "note";
 export type PostView = PostMode | "trash";
 export type PostContent = JSONContent;
 
+export type ActorGuardInput = {
+  expectedActorUserId?: string;
+};
+
 export type PostRecord = {
   id: string;
   mode: PostMode;
@@ -22,7 +26,7 @@ export type ListPostsInput = {
   favoriteOnly: boolean;
   limit?: number;
   cursor?: string;
-};
+} & ActorGuardInput;
 
 export type ListPostsResult = {
   items: PostRecord[];
@@ -34,13 +38,13 @@ export type CreatePostInput = {
   mode: PostMode;
   title?: string;
   content: PostContent;
-};
+} & ActorGuardInput;
 
 export type UpdatePostInput = {
   postId: string;
   title?: string;
   content: PostContent;
-};
+} & ActorGuardInput;
 
 export type ValidatedCreatePostDto = {
   mode: PostMode;
@@ -58,7 +62,7 @@ export type ValidatedUpdatePostDto = {
 export type SetFavoriteInput = {
   postId: string;
   favorite: boolean;
-};
+} & ActorGuardInput;
 
 export type FavoriteMutationResult = {
   postId: string;
@@ -67,15 +71,15 @@ export type FavoriteMutationResult = {
 
 export type MoveToTrashInput = {
   postId: string;
-};
+} & ActorGuardInput;
 
 export type RestoreFromTrashInput = {
   postId: string;
-};
+} & ActorGuardInput;
 
 export type DeleteTrashPostsInput = {
   postIds: string[];
-};
+} & ActorGuardInput;
 
 export type DeleteTrashPostsResult = {
   deletedPostIds: string[];

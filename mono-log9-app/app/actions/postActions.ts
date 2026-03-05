@@ -13,6 +13,7 @@ import {
   toValidatedListPostsInput,
   toValidatedCreatePostDto,
   toValidatedUpdatePostDto,
+  validatePostIdFormatByMode,
 } from "@/lib/posts/inputValidation";
 import { getActorPostRepository, postRepository } from "@/lib/posts/postRepository";
 import type {
@@ -21,6 +22,7 @@ import type {
   DeleteTrashPostsResult,
   EmptyTrashResult,
   FavoriteMutationResult,
+  ActorGuardInput,
   ListPostsInput,
   ListPostsResult,
   MoveToTrashInput,
@@ -154,11 +156,6 @@ async function maybeFailListPostsOnceForE2E(input: ListPostsInput): Promise<void
   throw new PostRepositoryError("INTERNAL_ERROR", "エラーが発生しました");
 }
 
-async function resolveRepositoryForAction(): Promise<PostRepository> {
-  const { repository } = await resolveRepositoryForActionWithMetrics();
-  return repository;
-}
-
 type ResolveRepositoryMetrics = {
   totalMs: number;
   authImportMs?: number;
@@ -169,6 +166,8 @@ type ResolveRepositoryMetrics = {
 
 async function resolveRepositoryForActionWithMetrics(): Promise<{
   repository: PostRepository;
+  repositoryMode: "stub" | "authjs";
+  actorUserId?: string;
   metrics: ResolveRepositoryMetrics;
 }> {
   const startedAt = Date.now();
@@ -176,6 +175,7 @@ async function resolveRepositoryForActionWithMetrics(): Promise<{
   if (getStubPostsEnabled()) {
     return {
       repository: postRepository,
+      repositoryMode: "stub",
       metrics: {
         totalMs: Date.now() - startedAt,
       },
@@ -200,6 +200,8 @@ async function resolveRepositoryForActionWithMetrics(): Promise<{
 
   return {
     repository,
+    repositoryMode: "authjs",
+    actorUserId,
     metrics: {
       totalMs: Date.now() - startedAt,
       authImportMs,
@@ -210,11 +212,38 @@ async function resolveRepositoryForActionWithMetrics(): Promise<{
   };
 }
 
+function throwSessionChangedError(): never {
+  throw new PostRepositoryError("UNAUTHORIZED", "ログイン状態が変更されました。再ログインしてください");
+}
+
+function assertExpectedActorForAction(input: {
+  repositoryMode: "stub" | "authjs";
+  resolvedActorUserId?: string;
+  expectedActorUserId?: string;
+}): void {
+  if (input.repositoryMode === "stub") {
+    return;
+  }
+
+  if (!input.resolvedActorUserId) {
+    throwSessionChangedError();
+  }
+
+  if (typeof input.expectedActorUserId !== "string" || input.expectedActorUserId.trim() === "") {
+    throwSessionChangedError();
+  }
+
+  const expectedActorUserId = validatePostIdFormatByMode(input.expectedActorUserId, "db");
+  if (expectedActorUserId !== input.resolvedActorUserId) {
+    throwSessionChangedError();
+  }
+}
+
 export async function listPostsAction(input: ListPostsInput): Promise<ActionResult<ListPostsResult>> {
   const requestId = createRequestId();
   const env = resolveLogEnv();
   const actionStartedAt = Date.now();
-  const repositoryMode = getStubPostsEnabled() ? "stub" : "authjs";
+  let repositoryMode: "stub" | "authjs" = getStubPostsEnabled() ? "stub" : "authjs";
   let resolveRepositoryMs: number | undefined;
   let authImportMs: number | undefined;
   let authSessionMs: number | undefined;
@@ -228,11 +257,17 @@ export async function listPostsAction(input: ListPostsInput): Promise<ActionResu
 
     const resolved = await resolveRepositoryForActionWithMetrics();
     const repository = resolved.repository;
+    repositoryMode = resolved.repositoryMode;
     resolveRepositoryMs = resolved.metrics.totalMs;
     authImportMs = resolved.metrics.authImportMs;
     authSessionMs = resolved.metrics.authSessionMs;
     ensureActorMs = resolved.metrics.ensureActorMs;
     actorRepositoryMs = resolved.metrics.actorRepositoryMs;
+    assertExpectedActorForAction({
+      repositoryMode: resolved.repositoryMode,
+      resolvedActorUserId: resolved.actorUserId,
+      expectedActorUserId: validated.expectedActorUserId,
+    });
 
     const repositoryStartedAt = Date.now();
     const data = await repository.listPosts(validated);
@@ -290,7 +325,13 @@ export async function listPostsAction(input: ListPostsInput): Promise<ActionResu
 
 export async function createPostAction(input: CreatePostInput): Promise<ActionResult<PostRecord>> {
   try {
-    const repository = await resolveRepositoryForAction();
+    const resolved = await resolveRepositoryForActionWithMetrics();
+    const repository = resolved.repository;
+    assertExpectedActorForAction({
+      repositoryMode: resolved.repositoryMode,
+      resolvedActorUserId: resolved.actorUserId,
+      expectedActorUserId: input.expectedActorUserId,
+    });
     const validated = toValidatedCreatePostDto(input);
     const data = await repository.createPost(validated);
     return { ok: true, data };
@@ -302,7 +343,13 @@ export async function createPostAction(input: CreatePostInput): Promise<ActionRe
 export async function updatePostAction(input: UpdatePostInput): Promise<ActionResult<PostRecord>> {
   try {
     const stubPostsEnabled = getStubPostsEnabled();
-    const repository = await resolveRepositoryForAction();
+    const resolved = await resolveRepositoryForActionWithMetrics();
+    const repository = resolved.repository;
+    assertExpectedActorForAction({
+      repositoryMode: resolved.repositoryMode,
+      resolvedActorUserId: resolved.actorUserId,
+      expectedActorUserId: input.expectedActorUserId,
+    });
     const validated = toValidatedUpdatePostDto(input, {
       postIdMode: stubPostsEnabled ? "stub" : "db",
     });
@@ -319,7 +366,7 @@ export async function setFavoriteAction(
   const requestId = createRequestId();
   const env = resolveLogEnv();
   const actionStartedAt = Date.now();
-  const repositoryMode = getStubPostsEnabled() ? "stub" : "authjs";
+  let repositoryMode: "stub" | "authjs" = getStubPostsEnabled() ? "stub" : "authjs";
   let resolveRepositoryMs: number | undefined;
   let authImportMs: number | undefined;
   let authSessionMs: number | undefined;
@@ -330,11 +377,17 @@ export async function setFavoriteAction(
   try {
     const resolved = await resolveRepositoryForActionWithMetrics();
     const repository = resolved.repository;
+    repositoryMode = resolved.repositoryMode;
     resolveRepositoryMs = resolved.metrics.totalMs;
     authImportMs = resolved.metrics.authImportMs;
     authSessionMs = resolved.metrics.authSessionMs;
     ensureActorMs = resolved.metrics.ensureActorMs;
     actorRepositoryMs = resolved.metrics.actorRepositoryMs;
+    assertExpectedActorForAction({
+      repositoryMode: resolved.repositoryMode,
+      resolvedActorUserId: resolved.actorUserId,
+      expectedActorUserId: input.expectedActorUserId,
+    });
 
     const repositoryStartedAt = Date.now();
     const data = await repository.setFavorite(input);
@@ -385,7 +438,13 @@ export async function setFavoriteAction(
 
 export async function moveToTrashAction(input: MoveToTrashInput): Promise<ActionResult<null>> {
   try {
-    const repository = await resolveRepositoryForAction();
+    const resolved = await resolveRepositoryForActionWithMetrics();
+    const repository = resolved.repository;
+    assertExpectedActorForAction({
+      repositoryMode: resolved.repositoryMode,
+      resolvedActorUserId: resolved.actorUserId,
+      expectedActorUserId: input.expectedActorUserId,
+    });
     await repository.moveToTrash(input);
     return { ok: true, data: null };
   } catch (error) {
@@ -397,7 +456,13 @@ export async function restoreFromTrashAction(
   input: RestoreFromTrashInput
 ): Promise<ActionResult<null>> {
   try {
-    const repository = await resolveRepositoryForAction();
+    const resolved = await resolveRepositoryForActionWithMetrics();
+    const repository = resolved.repository;
+    assertExpectedActorForAction({
+      repositoryMode: resolved.repositoryMode,
+      resolvedActorUserId: resolved.actorUserId,
+      expectedActorUserId: input.expectedActorUserId,
+    });
     await repository.restoreFromTrash(input);
     return { ok: true, data: null };
   } catch (error) {
@@ -409,7 +474,13 @@ export async function deleteTrashPostsAction(
   input: DeleteTrashPostsInput
 ): Promise<ActionResult<DeleteTrashPostsResult>> {
   try {
-    const repository = await resolveRepositoryForAction();
+    const resolved = await resolveRepositoryForActionWithMetrics();
+    const repository = resolved.repository;
+    assertExpectedActorForAction({
+      repositoryMode: resolved.repositoryMode,
+      resolvedActorUserId: resolved.actorUserId,
+      expectedActorUserId: input.expectedActorUserId,
+    });
     const data = await repository.deleteTrashPosts(input);
     return { ok: true, data };
   } catch (error) {
@@ -417,9 +488,17 @@ export async function deleteTrashPostsAction(
   }
 }
 
-export async function emptyTrashAction(): Promise<ActionResult<EmptyTrashResult>> {
+export async function emptyTrashAction(
+  input: ActorGuardInput = {}
+): Promise<ActionResult<EmptyTrashResult>> {
   try {
-    const repository = await resolveRepositoryForAction();
+    const resolved = await resolveRepositoryForActionWithMetrics();
+    const repository = resolved.repository;
+    assertExpectedActorForAction({
+      repositoryMode: resolved.repositoryMode,
+      resolvedActorUserId: resolved.actorUserId,
+      expectedActorUserId: input.expectedActorUserId,
+    });
     const data = await repository.emptyTrash();
     return { ok: true, data };
   } catch (error) {

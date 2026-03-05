@@ -135,11 +135,18 @@ export function toValidatedListPostsInput(input: ListPostsInput): ListPostsInput
   if (typeof input.cursor !== "undefined" && typeof input.cursor !== "string") {
     throwValidationError();
   }
+  if (
+    typeof input.expectedActorUserId !== "undefined" &&
+    typeof input.expectedActorUserId !== "string"
+  ) {
+    throwValidationError();
+  }
 
   return {
     view: input.view,
     favoriteOnly: input.favoriteOnly,
     limit: input.limit,
     cursor: input.cursor,
+    expectedActorUserId: input.expectedActorUserId,
   };
 }

@@ -15,23 +15,23 @@ describe("scrollRestoration", () => {
   });
 
   it("builds storage key by list condition", () => {
-    expect(getScrollStorageKey({ view: "memo", favoriteOnly: false })).toBe(
-      "mono-log:scroll:v1:memo:0"
+    expect(getScrollStorageKey({ view: "memo", favoriteOnly: false, actorScope: "stub" })).toBe(
+      "mono-log:scroll:v1:stub:memo:0"
     );
-    expect(getScrollStorageKey({ view: "memo", favoriteOnly: true })).toBe(
-      "mono-log:scroll:v1:memo:1"
+    expect(getScrollStorageKey({ view: "memo", favoriteOnly: true, actorScope: "stub" })).toBe(
+      "mono-log:scroll:v1:stub:memo:1"
     );
   });
 
   it("saves and reads scroll position", () => {
-    const condition = { view: "note" as const, favoriteOnly: false };
+    const condition = { view: "note" as const, favoriteOnly: false, actorScope: "stub" };
     saveScrollPosition(condition);
 
     expect(readScrollPosition(condition)).toBe(320);
   });
 
   it("restores scroll position using requestAnimationFrame", () => {
-    const condition = { view: "memo" as const, favoriteOnly: false };
+    const condition = { view: "memo" as const, favoriteOnly: false, actorScope: "stub" };
     sessionStorage.setItem(getScrollStorageKey(condition), "120");
     const rafSpy = jest
       .spyOn(window, "requestAnimationFrame")

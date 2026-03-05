@@ -1085,7 +1085,7 @@ describe("AuthedScreen", () => {
     await user.click(screen.getByRole("button", { name: "ノート" }));
 
     await waitFor(() => {
-      expect(sessionStorage.getItem("mono-log:scroll:v1:memo:0")).toBe("480");
+      expect(sessionStorage.getItem("mono-log:scroll:v1:stub:memo:0")).toBe("480");
     });
 
     Object.defineProperty(window, "scrollY", {
@@ -1120,7 +1120,7 @@ describe("AuthedScreen", () => {
     await user.click(screen.getByRole("button", { name: "ノート" }));
 
     await waitFor(() => {
-      expect(sessionStorage.getItem("mono-log:scroll:v1:memo:0")).toBe("640");
+      expect(sessionStorage.getItem("mono-log:scroll:v1:stub:memo:0")).toBe("640");
     });
 
     window.dispatchEvent(new PopStateEvent("popstate"));
@@ -1136,7 +1136,7 @@ describe("AuthedScreen", () => {
     });
 
     await waitFor(() => {
-      expect(sessionStorage.getItem("mono-log:scroll:v1:memo:0")).toBe("640");
+      expect(sessionStorage.getItem("mono-log:scroll:v1:stub:memo:0")).toBe("640");
     });
   });
 
@@ -1474,13 +1474,13 @@ describe("AuthedScreen", () => {
 
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: ["posts", { view: "memo", favoriteOnly: false }],
+        queryKey: ["posts", { view: "memo", favoriteOnly: false, actorScope: "stub" }],
         exact: true,
       });
     });
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: ["posts", { view: "memo", favoriteOnly: true }],
+        queryKey: ["posts", { view: "memo", favoriteOnly: true, actorScope: "stub" }],
         exact: true,
       });
     });
@@ -1494,9 +1494,12 @@ describe("AuthedScreen", () => {
     const { queryClient } = renderAuthedScreen();
     const invalidateSpy = jest.spyOn(queryClient, "invalidateQueries");
 
-    let resolveFavorite:
-      | ((value: { ok: true; data: { postId: string; favorite: boolean } }) => void)
-      | null = null;
+    let resolveFavorite: (value: {
+      ok: true;
+      data: { postId: string; favorite: boolean };
+    }) => void = () => {
+      throw new Error("favorite resolver not set");
+    };
     getPostActionsMock().setFavoriteAction.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -1531,17 +1534,19 @@ describe("AuthedScreen", () => {
         },
       ],
     };
-    queryClient.setQueryData(["posts", { view: "memo", favoriteOnly: false }], emptyData);
-    queryClient.setQueryData(["posts", { view: "memo", favoriteOnly: true }], emptyData);
+    queryClient.setQueryData(
+      ["posts", { view: "memo", favoriteOnly: false, actorScope: "stub" }],
+      emptyData
+    );
+    queryClient.setQueryData(
+      ["posts", { view: "memo", favoriteOnly: true, actorScope: "stub" }],
+      emptyData
+    );
     const movedTarget = mutablePosts.find((post) => post.id === "post-001");
     if (!movedTarget) {
       throw new Error("target post not found");
     }
     movedTarget.trashedAt = "2026-02-17 10:01";
-
-    if (!resolveFavorite) {
-      throw new Error("favorite resolver not set");
-    }
 
     await act(async () => {
       resolveFavorite({
@@ -1552,20 +1557,20 @@ describe("AuthedScreen", () => {
 
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: ["posts", { view: "memo", favoriteOnly: false }],
+        queryKey: ["posts", { view: "memo", favoriteOnly: false, actorScope: "stub" }],
         exact: true,
       });
     });
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: ["posts", { view: "memo", favoriteOnly: true }],
+        queryKey: ["posts", { view: "memo", favoriteOnly: true, actorScope: "stub" }],
         exact: true,
       });
     });
 
     const memoDefault = queryClient.getQueryData<{
       pages: Array<{ items: PostRecord[] }>;
-    }>(["posts", { view: "memo", favoriteOnly: false }]);
+    }>(["posts", { view: "memo", favoriteOnly: false, actorScope: "stub" }]);
     const memoDefaultIds = memoDefault?.pages.flatMap((page) => page.items.map((item) => item.id)) ?? [];
     expect(memoDefaultIds).not.toContain("post-001");
   });
@@ -1578,7 +1583,7 @@ describe("AuthedScreen", () => {
     await screen.findByText("買い物メモ: 牛乳、パン、トマト");
 
     queryClient.setQueryData(
-      ["posts", { view: "note", favoriteOnly: false }],
+      ["posts", { view: "note", favoriteOnly: false, actorScope: "stub" }],
       {
         pageParams: [undefined],
         pages: [
@@ -2822,7 +2827,7 @@ describe("AuthedScreen", () => {
         throw new Error("sessionStorage unavailable");
       }
 
-      return originalSetItem.call(this, key, value);
+      return originalSetItem.call(window.sessionStorage, key, value);
     });
 
     renderAuthedScreen({ authMode: "authjs" });

@@ -69,7 +69,7 @@ describe("postActions", () => {
     (auth as jest.Mock).mockResolvedValue({
       user: { googleSub: "google-sub-1" },
     });
-    (ensureActorUserFromSession as jest.Mock).mockResolvedValue("user-001");
+    (ensureActorUserFromSession as jest.Mock).mockResolvedValue(POST_ID);
     getActorRepositoryMock().mockReturnValue(getRepositoryMock());
     (headers as jest.Mock).mockResolvedValue(new Headers());
   });
@@ -148,7 +148,18 @@ describe("postActions", () => {
 
     await expect(
       createPostAction({ mode: "memo", content: createDocFromPlainText("a") })
-    ).resolves.toMatchObject({ ok: true });
+    ).resolves.toEqual({
+      ok: true,
+      data: {
+        id: POST_ID,
+        mode: "memo",
+        title: undefined,
+        content: createDocFromPlainText("a"),
+        contentText: "a",
+        favorite: false,
+        createdAt: "2026-02-16 10:00",
+      },
+    });
     expect(getRepositoryMock().createPost).toHaveBeenCalledWith({
       mode: "memo",
       title: undefined,
@@ -157,7 +168,18 @@ describe("postActions", () => {
     });
     await expect(
       updatePostAction({ postId: POST_ID, title: "  b  ", content: createDocFromPlainText("b") })
-    ).resolves.toMatchObject({ ok: true });
+    ).resolves.toEqual({
+      ok: true,
+      data: {
+        id: POST_ID,
+        mode: "memo",
+        title: undefined,
+        content: createDocFromPlainText("b"),
+        contentText: "b",
+        favorite: false,
+        createdAt: "2026-02-16 10:00",
+      },
+    });
     expect(getRepositoryMock().updatePost).toHaveBeenCalledWith({
       postId: POST_ID,
       title: "b",
@@ -244,7 +266,7 @@ describe("postActions", () => {
           ],
         },
       ],
-    } as const;
+    };
 
     getRepositoryMock().createPost.mockResolvedValue({
       id: OTHER_POST_ID,
@@ -399,6 +421,7 @@ describe("postActions", () => {
     const result = await updatePostAction({
       postId: "post-100",
       content: createDocFromPlainText("更新本文"),
+      expectedActorUserId: POST_ID,
     });
 
     expect(result).toEqual({

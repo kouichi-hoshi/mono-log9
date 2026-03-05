@@ -4,6 +4,7 @@ declare module "next-auth" {
   interface Session {
     user: DefaultSession["user"] & {
       googleSub?: string | null;
+      actorUserId?: string | null;
     };
   }
 }
@@ -11,5 +12,6 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     googleSub?: string;
+    actorUserId?: string;
   }
 }
