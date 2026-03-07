@@ -13,16 +13,16 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#ffffff",
     background_color: "#ffffff",
     icons: [
-      { src: "/icons/mono-log-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icons/mono-log-512.png", sizes: "512x512", type: "image/png" },
+      { src: "/icons/web-app-manifest-192x192.png", sizes: "192x192", type: "image/png" },
+      { src: "/icons/web-app-manifest-512x512.png", sizes: "512x512", type: "image/png" },
       {
-        src: "/icons/mono-log-192-maskable.png",
+        src: "/icons/maskable_icon_x192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "maskable",
       },
       {
-        src: "/icons/mono-log-512-maskable.png",
+        src: "/icons/maskable_icon_x512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
