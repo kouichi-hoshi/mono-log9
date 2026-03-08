@@ -60,7 +60,7 @@ export default function FullscreenModal({
     >
       <DialogContent
         showCloseButton={false}
-        className="left-0 top-0 h-screen w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0"
+        className="left-0 top-0 h-svh w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0"
         onPointerDown={handleContentPointerDown}
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
