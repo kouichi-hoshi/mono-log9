@@ -84,7 +84,7 @@ export default function NoteEditor({
     editorProps: {
       attributes: {
         class:
-          "tiptap rounded-md border border-foreground/10 bg-background px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-foreground/20",
+          "tiptap rounded-md border border-foreground/10 bg-background px-3 py-2 text-base leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-foreground/20",
         "aria-label": "ノート本文",
         "data-testid": "note-editor-input",
       },
@@ -179,7 +179,7 @@ export default function NoteEditor({
         aria-label="ノートタイトル"
         onChange={(event) => onTitleChange(event.target.value)}
         placeholder="タイトル（任意）"
-        className="w-full rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+        className="w-full rounded-md border border-foreground/20 bg-background px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
       />
 
       <NoteToolbar

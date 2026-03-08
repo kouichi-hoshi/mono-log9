@@ -89,11 +89,11 @@ export default function LinkDialog({ open, onOpenChange, onSubmit }: LinkDialogP
               }
             }}
             placeholder="https://example.com"
-            className="w-full rounded-md border border-foreground/20 bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+            className="w-full rounded-md border border-foreground/20 bg-background px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
           />
           {error && <p className="text-xs text-red-600">{error}</p>}
         </div>
-        <DialogFooter>
+        <DialogFooter className="mt-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             キャンセル
           </Button>

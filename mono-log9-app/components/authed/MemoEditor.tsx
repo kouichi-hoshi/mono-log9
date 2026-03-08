@@ -75,7 +75,7 @@ export default function MemoEditor({
             }
           }}
           placeholder="メモを書く"
-          className="min-w-0 flex-1 rounded-md border border-foreground/20 bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+          className="min-w-0 flex-1 rounded-md border border-foreground/20 bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
         />
         {isEditing && (
           <Button
