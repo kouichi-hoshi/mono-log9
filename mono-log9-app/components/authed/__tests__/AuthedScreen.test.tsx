@@ -2671,6 +2671,60 @@ describe("AuthedScreen", () => {
     });
   });
 
+  it("shows same draft when opening same note edit multiple times", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    renderAuthedScreen();
+
+    const noteCard = await findTodayLearningNoteCard();
+    if (!noteCard) {
+      throw new Error("note card not found");
+    }
+
+    await user.click(within(noteCard).getByRole("button", { name: "編集" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("ノート本文")).toHaveTextContent("内容");
+    });
+
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+    await waitFor(() => {
+      expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
+    });
+
+    await user.click(within(noteCard).getByRole("button", { name: "編集" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("ノート本文")).toHaveTextContent("内容");
+    });
+  });
+
+  it("keeps note draft when parent re-renders while dirty", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    const { rerender, queryClient } = renderAuthedScreen();
+
+    const noteCard = await findTodayLearningNoteCard();
+    if (!noteCard) {
+      throw new Error("note card not found");
+    }
+
+    await user.click(within(noteCard).getByRole("button", { name: "編集" }));
+    const titleInput = screen.getByLabelText("ノートタイトル");
+    await user.clear(titleInput);
+    await user.type(titleInput, "親再描画でも消えない");
+
+    expect(titleInput).toHaveValue("親再描画でも消えない");
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <AuthedScreen authMode="stub" />
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByLabelText("ノートタイトル")).toHaveValue("親再描画でも消えない");
+  });
+
   it("closes noteComposer edit and replaces URL when target post is missing", async () => {
     getNavigationMock().__mockNavigation.setQuery("view=note&noteComposer=edit:missing-post");
 
@@ -2718,6 +2772,81 @@ describe("AuthedScreen", () => {
     await user.click(screen.getByRole("button", { name: "ノートを書く" }));
     await waitFor(() => {
       expect(screen.getByLabelText("ノートタイトル")).toHaveValue("");
+    });
+  });
+
+  it("keeps restored edit note draft after relogin consumption", async () => {
+    getNavigationMock().__mockNavigation.setQuery("view=note&noteComposer=edit:post-002");
+    window.sessionStorage.setItem(
+      "mono-log:relogin-draft:v1",
+      JSON.stringify({
+        version: 1,
+        savedAt: Date.now(),
+        query: "view=note&noteComposer=edit:post-002",
+        memoDraft: "",
+        editingMemoPostId: null,
+        editingMemoValue: "",
+        noteDraft: {
+          title: "復元したノートタイトル",
+          contentJson: createDocFromPlainText("復元したノート本文"),
+          plainText: "復元したノート本文",
+        },
+      })
+    );
+
+    renderAuthedScreen({ authMode: "authjs" });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("ノートタイトル")).toHaveValue("復元したノートタイトル");
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText("ノート本文")).toHaveTextContent("復元したノート本文");
+    });
+
+    expect(screen.getByLabelText("ノート本文")).not.toHaveTextContent("内容");
+  });
+
+  it("does not show discard confirmation when reopening note edit after save", async () => {
+    const user = userEvent.setup();
+    getNavigationMock().__mockNavigation.setQuery("view=note");
+
+    renderAuthedScreen();
+
+    const noteCard = await findTodayLearningNoteCard();
+    if (!noteCard) {
+      throw new Error("note card not found");
+    }
+
+    await user.click(within(noteCard).getByRole("button", { name: "編集" }));
+
+    const titleInput = screen.getByLabelText("ノートタイトル");
+    await user.clear(titleInput);
+    await user.type(titleInput, "保存後に再編集");
+    await user.click(screen.getByRole("button", { name: "更新する" }));
+
+    await waitFor(() => {
+      expect(getPostActionsMock().updatePostAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          postId: "post-002",
+          title: "保存後に再編集",
+        })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.queryByLabelText("ノートタイトル")).not.toBeInTheDocument();
+    });
+
+    const savedCard = screen.getByText("保存後に再編集").closest("article");
+    if (!savedCard) {
+      throw new Error("saved note card not found");
+    }
+
+    await user.click(within(savedCard).getByRole("button", { name: "編集" }));
+
+    expect(screen.queryByText("編集中の内容があります。破棄して続行しますか？")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText("ノートタイトル")).toHaveValue("保存後に再編集");
     });
   });
 

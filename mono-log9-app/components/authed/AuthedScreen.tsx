@@ -20,7 +20,7 @@ import ControlledLoginDialog from "@/components/auth/ControlledLoginDialog";
 import Container1 from "@/components/authed/Container1";
 import DiscardConfirmDialog from "@/components/authed/DiscardConfirmDialog";
 import HeaderPostArea from "@/components/authed/HeaderPostArea";
-import NoteComposerModal from "@/components/authed/NoteComposerModal";
+import NoteComposerModal, { EMPTY_DRAFT } from "@/components/authed/NoteComposerModal";
 import PostsSection from "@/components/authed/PostsSection";
 import TrashDeleteDialog from "@/components/authed/TrashDeleteDialog";
 import type { AuthedUser, ViewMode } from "@/components/authed/stubs";
@@ -61,7 +61,7 @@ import {
   applyRestoreFromTrashMutation,
   upsertForCurrentView,
 } from "@/lib/posts/cacheMutations";
-import { isMemoDirty } from "@/lib/posts/hasEdits";
+import { isMemoDirty, isNoteDirty } from "@/lib/posts/hasEdits";
 import {
   flattenInfiniteItems,
   rebuildInfiniteData,
@@ -111,6 +111,40 @@ function toErrorMessage(error: unknown): string | null {
 
 function formatNowDate(): string {
   return formatJstDateTime(new Date());
+}
+
+function cloneNoteDraft(draft: NoteDraft): NoteDraft {
+  return {
+    title: draft.title,
+    contentJson: draft.contentJson ? clonePostContent(draft.contentJson) : null,
+    plainText: draft.plainText,
+  };
+}
+
+function noteDraftFromPost(post: PostRecord): NoteDraft {
+  return {
+    title: post.title ?? "",
+    contentJson: clonePostContent(post.content),
+    plainText: post.contentText,
+  };
+}
+
+function getNoteDraftSessionKey(queryString: string): string | null {
+  const normalized = normalizeAuthedQuery(queryString).state;
+  if (normalized.view !== "note") {
+    return null;
+  }
+  if (normalized.noteComposer.mode === "create") {
+    return "create";
+  }
+  if (normalized.noteComposer.mode === "edit" && normalized.noteComposer.postId) {
+    return `edit:${normalized.noteComposer.postId}`;
+  }
+  return null;
+}
+
+function canonicalizeQueryString(queryString: string): string {
+  return new URLSearchParams(queryString).toString();
 }
 
 function parsePostsListConditionFromQueryKey(key: QueryKey): PostsListCondition | null {
@@ -171,7 +205,12 @@ export default function AuthedScreen({
   const [editingMemoValue, setEditingMemoValue] = React.useState("");
   const [editingMemoInitialValue, setEditingMemoInitialValue] = React.useState("");
 
-  const [noteModalDirty, setNoteModalDirty] = React.useState(false);
+  const [noteDraft, setNoteDraft] = React.useState<NoteDraft>(() => ({ ...EMPTY_DRAFT }));
+  const [noteBaselineDraft, setNoteBaselineDraft] = React.useState<NoteDraft>(() => ({
+    ...EMPTY_DRAFT,
+  }));
+  const lastNoteDraftSeedKeyRef = React.useRef<string | null>(null);
+  const restoredNoteDraftAppliedKeyRef = React.useRef<string | null>(null);
   const [selectedTrashPostIds, setSelectedTrashPostIds] = React.useState<Set<string>>(() => new Set());
   const [deleteDialogMode, setDeleteDialogMode] = React.useState<"selected" | "all" | null>(null);
   const [isDeleteSubmitting, setIsDeleteSubmitting] = React.useState(false);
@@ -179,6 +218,7 @@ export default function AuthedScreen({
   const [isLoginDialogOpen, setIsLoginDialogOpen] = React.useState(false);
   const [isLogoutSubmitting, setIsLogoutSubmitting] = React.useState(false);
   const [restoredNoteDraft, setRestoredNoteDraft] = React.useState<ReloginNoteDraft | null>(null);
+  const [hasLoadedReloginDraft, setHasLoadedReloginDraft] = React.useState(authMode !== "authjs");
   const liveNoteDraftRef = React.useRef<ReloginNoteDraft | null>(null);
   const memoDraftRef = useLatestRef(memoDraft);
   const editingMemoPostIdRef = useLatestRef(editingMemoPostId);
@@ -196,11 +236,17 @@ export default function AuthedScreen({
   const isMemoCreateDirty = memoDraft.length > 0;
   const isMemoEditDirty =
     editingMemoPostId !== null && isMemoDirty(editingMemoInitialValue, editingMemoValue);
-  const isNoteEditDirty = noteModalDirty;
+  const isNoteEditDirty = isNoteDirty(
+    { title: noteBaselineDraft.title, content: noteBaselineDraft.contentJson },
+    { title: noteDraft.title, content: noteDraft.contentJson }
+  );
   const hasUnsavedEdits = isMemoCreateDirty || isMemoEditDirty || isNoteEditDirty;
 
   const closeNoteModalNow = React.useCallback(() => {
-    setNoteModalDirty(false);
+    setNoteDraft({ ...EMPTY_DRAFT });
+    setNoteBaselineDraft({ ...EMPTY_DRAFT });
+    lastNoteDraftSeedKeyRef.current = null;
+    restoredNoteDraftAppliedKeyRef.current = null;
   }, []);
 
   const discardCurrentEdits = React.useCallback(() => {
@@ -208,6 +254,10 @@ export default function AuthedScreen({
     setEditingMemoPostId(null);
     setEditingMemoValue("");
     setEditingMemoInitialValue("");
+    setNoteDraft({ ...EMPTY_DRAFT });
+    setNoteBaselineDraft({ ...EMPTY_DRAFT });
+    lastNoteDraftSeedKeyRef.current = null;
+    restoredNoteDraftAppliedKeyRef.current = null;
     closeNoteModalNow();
   }, [closeNoteModalNow]);
 
@@ -390,23 +440,37 @@ export default function AuthedScreen({
 
   React.useEffect(() => {
     if (authMode !== "authjs") {
+      setHasLoadedReloginDraft(true);
       return;
     }
 
     const restored = loadReloginDraft();
-    if (!restored || restored.query !== queryString) {
-      return;
+    if (
+      restored &&
+      canonicalizeQueryString(restored.query) === canonicalizeQueryString(queryString)
+    ) {
+      setMemoDraft(restored.memoDraft);
+      if (restored.editingMemoPostId) {
+        setEditingMemoPostId(restored.editingMemoPostId);
+        setEditingMemoInitialValue(restored.editingMemoValue);
+        setEditingMemoValue(restored.editingMemoValue);
+      }
+
+      const restoredNoteSessionKey = getNoteDraftSessionKey(queryString);
+      if (restored.noteDraft && restoredNoteSessionKey) {
+        const restoredDraft = cloneNoteDraft(restored.noteDraft);
+        setNoteBaselineDraft(restoredDraft);
+        setNoteDraft(cloneNoteDraft(restoredDraft));
+        lastNoteDraftSeedKeyRef.current = restoredNoteSessionKey;
+        restoredNoteDraftAppliedKeyRef.current = restoredNoteSessionKey;
+        setRestoredNoteDraft(null);
+      } else {
+        setRestoredNoteDraft(restored.noteDraft);
+      }
+      clearReloginDraft();
     }
 
-    setMemoDraft(restored.memoDraft);
-    if (restored.editingMemoPostId) {
-      setEditingMemoPostId(restored.editingMemoPostId);
-      setEditingMemoInitialValue(restored.editingMemoValue);
-      setEditingMemoValue(restored.editingMemoValue);
-    }
-
-    setRestoredNoteDraft(restored.noteDraft);
-    clearReloginDraft();
+    setHasLoadedReloginDraft(true);
   }, [authMode, queryString]);
 
   React.useEffect(() => {
@@ -583,21 +647,18 @@ export default function AuthedScreen({
   const consumeRestoredNoteDraft = React.useCallback(() => {
     setRestoredNoteDraft(null);
   }, []);
-  const handleLiveNoteDraftChange = React.useCallback((draft: ReloginNoteDraft | null) => {
-    liveNoteDraftRef.current = draft;
-  }, []);
 
   const {
-    noteModalMode,
+    mode: noteModalMode,
     editingNotePostId,
-    noteModalInitialTitle,
-    noteModalInitialContent,
-    noteModalInitialPlainText,
+    sessionKey: noteDraftSeedKey,
+    resolvedDraft,
+    missingTargetNextQuery,
+    shouldConsumeRestoredDraft,
   } = useNoteComposerState({
     effectiveQueryString,
     noteComposer,
     isNoteModalOpen,
-    noteModalDirty,
     visibleItems,
     restoredNoteDraft,
     listState: {
@@ -605,10 +666,78 @@ export default function AuthedScreen({
       isFetching: listQuery.isFetching,
     },
     findInCachedPostLists,
-    closeNoteModalNow,
-    onMissingTarget: handleMissingNoteComposerTarget,
-    onConsumeRestoredDraft: consumeRestoredNoteDraft,
   });
+
+  const handledMissingTargetRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!missingTargetNextQuery) {
+      handledMissingTargetRef.current = null;
+      return;
+    }
+    if (handledMissingTargetRef.current === missingTargetNextQuery) {
+      return;
+    }
+    handledMissingTargetRef.current = missingTargetNextQuery;
+    handleMissingNoteComposerTarget(missingTargetNextQuery);
+  }, [handleMissingNoteComposerTarget, missingTargetNextQuery]);
+
+  const hasHandledCloseRef = React.useRef(false);
+  React.useEffect(() => {
+    if (isNoteModalOpen) {
+      hasHandledCloseRef.current = false;
+      return;
+    }
+    if (isNoteEditDirty) {
+      return;
+    }
+    if (hasHandledCloseRef.current) {
+      return;
+    }
+    hasHandledCloseRef.current = true;
+    closeNoteModalNow();
+  }, [closeNoteModalNow, isNoteModalOpen, isNoteEditDirty]);
+
+  React.useEffect(() => {
+    liveNoteDraftRef.current = isNoteModalOpen ? noteDraft : null;
+  }, [isNoteModalOpen, noteDraft]);
+
+  React.useEffect(() => {
+    if (!hasLoadedReloginDraft) {
+      return;
+    }
+    if (!isNoteModalOpen || !noteDraftSeedKey) {
+      if (!isNoteModalOpen) {
+        lastNoteDraftSeedKeyRef.current = null;
+        restoredNoteDraftAppliedKeyRef.current = null;
+      }
+      return;
+    }
+    if (!resolvedDraft) {
+      return;
+    }
+
+    const hasSeededCurrentSession = lastNoteDraftSeedKeyRef.current === noteDraftSeedKey;
+    const shouldApplyRestoredSeed =
+      shouldConsumeRestoredDraft && restoredNoteDraftAppliedKeyRef.current !== noteDraftSeedKey;
+    if (hasSeededCurrentSession && !shouldApplyRestoredSeed) {
+      return;
+    }
+
+    lastNoteDraftSeedKeyRef.current = noteDraftSeedKey;
+    setNoteBaselineDraft(cloneNoteDraft(resolvedDraft));
+    setNoteDraft(cloneNoteDraft(resolvedDraft));
+    if (shouldConsumeRestoredDraft) {
+      restoredNoteDraftAppliedKeyRef.current = noteDraftSeedKey;
+      consumeRestoredNoteDraft();
+    }
+  }, [
+    consumeRestoredNoteDraft,
+    hasLoadedReloginDraft,
+    isNoteModalOpen,
+    noteDraftSeedKey,
+    resolvedDraft,
+    shouldConsumeRestoredDraft,
+  ]);
 
   const handleFavoriteFilterToggle = React.useCallback(() => {
     const next = buildQueryForFavoriteToggle(effectiveQueryStringRef.current);
@@ -976,9 +1105,11 @@ export default function AuthedScreen({
         return false;
       }
 
+      const savedDraft = noteDraftFromPost(result.data);
+      setNoteBaselineDraft(savedDraft);
+      setNoteDraft(cloneNoteDraft(savedDraft));
       upsertPostInVisibleList(result.data);
       toast(noteModalMode === "edit" ? "更新しました" : "保存しました");
-      setNoteModalDirty(false);
       skipDiscardConfirmOnNextNoteCloseRef.current = true;
 
       return true;
@@ -1316,13 +1447,11 @@ export default function AuthedScreen({
         open={isNoteModalOpen}
         onOpenChange={handleNoteModalOpenChange}
         mode={noteModalMode}
-        initialTitle={noteModalInitialTitle}
-        initialContentJson={noteModalInitialContent}
-        initialPlainText={noteModalInitialPlainText}
+        draft={noteDraft}
+        onDraftChange={setNoteDraft}
         onSaveStub={handleNoteSaveStub}
-        onDirtyChange={setNoteModalDirty}
-        onDraftChange={handleLiveNoteDraftChange}
         onRequestClose={handleNoteModalRequestClose}
+        sessionKey={noteDraftSeedKey ?? undefined}
       />
       <ControlledLoginDialog
         open={isLoginDialogOpen}

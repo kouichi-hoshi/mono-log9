@@ -117,17 +117,6 @@ export default function NoteEditor({
     }
   }, [contentJson, editor]);
 
-  React.useEffect(() => {
-    if (!editor) {
-      return;
-    }
-
-    onContentStateChange({
-      contentJson: editor.getJSON(),
-      plainText: editor.getText(),
-    });
-  }, [editor, onContentStateChange]);
-
   const handleLinkClick = React.useCallback(() => {
     if (!editor) {
       return;

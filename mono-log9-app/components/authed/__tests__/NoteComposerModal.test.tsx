@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import NoteComposerModal from "@/components/authed/NoteComposerModal";
+import NoteComposerModal, { EMPTY_DRAFT } from "@/components/authed/NoteComposerModal";
 import { createDocFromPlainText } from "@/lib/posts/content";
+import type { NoteDraft } from "@/components/authed/types";
 
 describe("NoteComposerModal", () => {
   it("shows validation alert when note body is empty", async () => {
@@ -13,6 +14,8 @@ describe("NoteComposerModal", () => {
         open
         onOpenChange={jest.fn()}
         mode="create"
+        draft={{ ...EMPTY_DRAFT }}
+        onDraftChange={jest.fn()}
         onSaveStub={jest.fn().mockResolvedValue(true)}
       />
     );
@@ -32,6 +35,8 @@ describe("NoteComposerModal", () => {
         open
         onOpenChange={onOpenChange}
         mode="create"
+        draft={{ ...EMPTY_DRAFT }}
+        onDraftChange={jest.fn()}
         onSaveStub={jest.fn().mockResolvedValue(true)}
         onRequestClose={onRequestClose}
       />
@@ -52,6 +57,8 @@ describe("NoteComposerModal", () => {
         open
         onOpenChange={onOpenChange}
         mode="create"
+        draft={{ ...EMPTY_DRAFT }}
+        onDraftChange={jest.fn()}
         onSaveStub={jest.fn().mockResolvedValue(true)}
       />
     );
@@ -61,69 +68,46 @@ describe("NoteComposerModal", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("notifies dirty state changes while open", async () => {
+  it("calls onDraftChange when user types in title", async () => {
     const user = userEvent.setup();
-    const onDirtyChange = jest.fn();
+    const onDraftChange = jest.fn();
 
     render(
       <NoteComposerModal
         open
         onOpenChange={jest.fn()}
         mode="create"
+        draft={{ ...EMPTY_DRAFT }}
+        onDraftChange={onDraftChange}
         onSaveStub={jest.fn().mockResolvedValue(true)}
-        onDirtyChange={onDirtyChange}
       />
     );
 
-    await waitFor(() => {
-      expect(onDirtyChange).toHaveBeenCalledWith(false);
-    });
+    await user.type(screen.getByLabelText("ノートタイトル"), "test");
 
-    await user.type(screen.getByLabelText("ノートタイトル"), "下書き");
-
-    await waitFor(() => {
-      expect(onDirtyChange).toHaveBeenCalledWith(true);
-    });
-  });
-
-  it("notifies clean state when modal closes", async () => {
-    const onDirtyChange = jest.fn();
-    const { rerender } = render(
-      <NoteComposerModal
-        open
-        onOpenChange={jest.fn()}
-        mode="create"
-        onSaveStub={jest.fn().mockResolvedValue(true)}
-        onDirtyChange={onDirtyChange}
-      />
-    );
-
-    rerender(
-      <NoteComposerModal
-        open={false}
-        onOpenChange={jest.fn()}
-        mode="create"
-        onSaveStub={jest.fn().mockResolvedValue(true)}
-        onDirtyChange={onDirtyChange}
-      />
-    );
-
-    await waitFor(() => {
-      expect(onDirtyChange).toHaveBeenCalledWith(false);
-    });
+    expect(onDraftChange).toHaveBeenCalled();
+    const calls = onDraftChange.mock.calls;
+    const lastDraft = calls[calls.length - 1][0];
+    expect(lastDraft.title).toBeDefined();
+    expect("test").toContain(lastDraft.title);
   });
 
   it("keeps modal open when save fails", async () => {
     const user = userEvent.setup();
     const onSaveStub = jest.fn().mockResolvedValue(false);
+    const draft: NoteDraft = {
+      title: "",
+      contentJson: createDocFromPlainText("既存ノート本文"),
+      plainText: "既存ノート本文",
+    };
 
     render(
       <NoteComposerModal
         open
         onOpenChange={jest.fn()}
         mode="edit"
-        initialContentJson={createDocFromPlainText("既存ノート本文")}
-        initialPlainText="既存ノート本文"
+        draft={draft}
+        onDraftChange={jest.fn()}
         onSaveStub={onSaveStub}
       />
     );
@@ -136,34 +120,34 @@ describe("NoteComposerModal", () => {
     expect(screen.getByRole("button", { name: "更新する" })).toBeInTheDocument();
   });
 
-  it("preserves editing draft when initial props change while dirty", async () => {
+  it("displays draft from parent and calls onDraftChange when user edits", async () => {
     const user = userEvent.setup();
-    const onOpenChange = jest.fn();
+    const onDraftChange = jest.fn();
+    const initialDraft: NoteDraft = {
+      title: "初期タイトル",
+      contentJson: createDocFromPlainText("初期本文"),
+      plainText: "初期本文",
+    };
 
-    const { rerender } = render(
+    render(
       <NoteComposerModal
         open
-        onOpenChange={onOpenChange}
+        onOpenChange={jest.fn()}
         mode="create"
-        initialTitle=""
+        draft={initialDraft}
+        onDraftChange={onDraftChange}
         onSaveStub={jest.fn().mockResolvedValue(true)}
       />
     );
 
-    const titleInput = screen.getByLabelText("ノートタイトル");
-    await user.type(titleInput, "編集中タイトル");
-    expect(screen.getByLabelText("ノートタイトル")).toHaveValue("編集中タイトル");
+    expect(screen.getByLabelText("ノートタイトル")).toHaveValue("初期タイトル");
 
-    rerender(
-      <NoteComposerModal
-        open
-        onOpenChange={onOpenChange}
-        mode="create"
-        initialTitle="外部更新タイトル"
-        onSaveStub={jest.fn().mockResolvedValue(true)}
-      />
-    );
+    await user.clear(screen.getByLabelText("ノートタイトル"));
+    await user.type(screen.getByLabelText("ノートタイトル"), "new");
 
-    expect(screen.getByLabelText("ノートタイトル")).toHaveValue("編集中タイトル");
+    expect(onDraftChange).toHaveBeenCalled();
+    const calls = onDraftChange.mock.calls;
+    const editedTitles = calls.map((c) => c[0].title).filter((t) => t !== "初期タイトル");
+    expect(editedTitles.length).toBeGreaterThan(0);
   });
 });

@@ -1,167 +1,175 @@
 "use client";
 
-import * as React from "react";
-
 import { buildQueryForNoteComposerClose } from "@/lib/authedQueryState";
 import type { ReloginNoteDraft } from "@/lib/auth/reloginDraft";
 import { clonePostContent } from "@/lib/posts/content";
-import type { PostContent, PostRecord } from "@/lib/posts/types";
+import type { PostRecord } from "@/lib/posts/types";
+import type { NoteDraft } from "@/components/authed/types";
 
 export type UseNoteComposerStateInput = {
   effectiveQueryString: string;
   noteComposer: { mode: "none" | "create" | "edit"; postId?: string };
   isNoteModalOpen: boolean;
-  noteModalDirty: boolean;
   visibleItems: PostRecord[];
   restoredNoteDraft: ReloginNoteDraft | null;
   listState: { hasData: boolean; isFetching: boolean };
   findInCachedPostLists: (postId: string) => PostRecord | null;
-  closeNoteModalNow: () => void;
-  onMissingTarget: (nextQuery: string) => void;
-  onConsumeRestoredDraft: () => void;
 };
 
 export type UseNoteComposerStateOutput = {
-  noteModalMode: "create" | "edit";
+  mode: "create" | "edit";
   editingNotePostId: string | null;
-  noteModalInitialTitle: string;
-  noteModalInitialContent: PostContent | null;
-  noteModalInitialPlainText: string;
+  sessionKey: string | null;
+  resolvedDraft: NoteDraft | null;
+  missingTargetNextQuery: string | null;
+  shouldConsumeRestoredDraft: boolean;
 };
 
-export function useNoteComposerState({
-  effectiveQueryString,
-  noteComposer,
-  isNoteModalOpen,
-  noteModalDirty,
-  visibleItems,
-  restoredNoteDraft,
-  listState,
-  findInCachedPostLists,
-  closeNoteModalNow,
-  onMissingTarget,
-  onConsumeRestoredDraft,
-}: UseNoteComposerStateInput): UseNoteComposerStateOutput {
-  const [noteModalMode, setNoteModalMode] = React.useState<"create" | "edit">("create");
-  const [editingNotePostId, setEditingNotePostId] = React.useState<string | null>(null);
-  const [noteModalInitialTitle, setNoteModalInitialTitle] = React.useState("");
-  const [noteModalInitialContent, setNoteModalInitialContent] = React.useState<PostContent | null>(
-    null
-  );
-  const [noteModalInitialPlainText, setNoteModalInitialPlainText] = React.useState("");
-
-  const initializedNoteComposerRef = React.useRef<string | null>(null);
-  const handledMissingNoteComposerRef = React.useRef<string | null>(null);
-
-  const resetNoteComposerState = React.useCallback(() => {
-    setNoteModalMode("create");
-    setEditingNotePostId(null);
-    setNoteModalInitialTitle("");
-    setNoteModalInitialContent(null);
-    setNoteModalInitialPlainText("");
-  }, []);
-
-  React.useEffect(() => {
-    if (!isNoteModalOpen) {
-      if (noteModalDirty) {
-        return;
-      }
-
-      handledMissingNoteComposerRef.current = null;
-      initializedNoteComposerRef.current = null;
-      resetNoteComposerState();
-      closeNoteModalNow();
-      return;
-    }
-
-    if (noteComposer.mode === "create") {
-      if (initializedNoteComposerRef.current === "create") {
-        if (restoredNoteDraft && !noteModalDirty) {
-          setNoteModalInitialTitle(restoredNoteDraft.title);
-          setNoteModalInitialContent(restoredNoteDraft.contentJson);
-          setNoteModalInitialPlainText(restoredNoteDraft.plainText);
-          onConsumeRestoredDraft();
-        }
-        return;
-      }
-
-      initializedNoteComposerRef.current = "create";
-      handledMissingNoteComposerRef.current = null;
-      setNoteModalMode("create");
-      setEditingNotePostId(null);
-      setNoteModalInitialTitle(restoredNoteDraft?.title ?? "");
-      setNoteModalInitialContent(restoredNoteDraft?.contentJson ?? null);
-      setNoteModalInitialPlainText(restoredNoteDraft?.plainText ?? "");
-      if (restoredNoteDraft) {
-        onConsumeRestoredDraft();
-      }
-      return;
-    }
-
-    if (noteComposer.mode !== "edit" || !noteComposer.postId) {
-      return;
-    }
-    const noteComposerPostId = noteComposer.postId;
-
-    const targetPost =
-      visibleItems.find((post) => post.id === noteComposerPostId) ??
-      findInCachedPostLists(noteComposerPostId);
-
-    if (!targetPost && !listState.hasData && listState.isFetching) {
-      return;
-    }
-
-    if (
-      !targetPost ||
-      targetPost.mode !== "note" ||
-      typeof targetPost.trashedAt !== "undefined"
-    ) {
-      const signature = `edit:${noteComposerPostId}`;
-      if (handledMissingNoteComposerRef.current === signature) {
-        return;
-      }
-
-      handledMissingNoteComposerRef.current = signature;
-      onMissingTarget(buildQueryForNoteComposerClose(effectiveQueryString).nextQuery);
-      return;
-    }
-
-    const initializedSignature = `edit:${targetPost.id}`;
-    if (initializedNoteComposerRef.current === initializedSignature) {
-      return;
-    }
-
-    initializedNoteComposerRef.current = initializedSignature;
-    handledMissingNoteComposerRef.current = null;
-    setNoteModalMode("edit");
-    setEditingNotePostId(targetPost.id);
-    setNoteModalInitialTitle(restoredNoteDraft?.title ?? targetPost.title ?? "");
-    setNoteModalInitialContent(restoredNoteDraft?.contentJson ?? clonePostContent(targetPost.content));
-    setNoteModalInitialPlainText(restoredNoteDraft?.plainText ?? targetPost.contentText);
-    if (restoredNoteDraft) {
-      onConsumeRestoredDraft();
-    }
-  }, [
-    closeNoteModalNow,
+function resolveNoteComposerSession(
+  input: UseNoteComposerStateInput
+): Omit<UseNoteComposerStateOutput, "shouldConsumeRestoredDraft"> & {
+  shouldConsumeRestoredDraft: boolean;
+} {
+  const {
     effectiveQueryString,
-    findInCachedPostLists,
-    isNoteModalOpen,
-    listState.hasData,
-    listState.isFetching,
     noteComposer,
-    noteModalDirty,
-    onConsumeRestoredDraft,
-    onMissingTarget,
-    resetNoteComposerState,
-    restoredNoteDraft,
+    isNoteModalOpen,
     visibleItems,
-  ]);
+    restoredNoteDraft,
+    listState,
+    findInCachedPostLists,
+  } = input;
 
+  if (!isNoteModalOpen) {
+    return {
+      mode: "create",
+      editingNotePostId: null,
+      sessionKey: null,
+      resolvedDraft: null,
+      missingTargetNextQuery: null,
+      shouldConsumeRestoredDraft: false,
+    };
+  }
+
+  if (noteComposer.mode === "create") {
+    const draft: NoteDraft = {
+      title: restoredNoteDraft?.title ?? "",
+      contentJson: restoredNoteDraft?.contentJson ?? null,
+      plainText: restoredNoteDraft?.plainText ?? "",
+    };
+    return {
+      mode: "create",
+      editingNotePostId: null,
+      sessionKey: "create",
+      resolvedDraft: draft,
+      missingTargetNextQuery: null,
+      shouldConsumeRestoredDraft: Boolean(restoredNoteDraft),
+    };
+  }
+
+  if (noteComposer.mode !== "edit" || !noteComposer.postId) {
+    return {
+      mode: "create",
+      editingNotePostId: null,
+      sessionKey: null,
+      resolvedDraft: null,
+      missingTargetNextQuery: null,
+      shouldConsumeRestoredDraft: false,
+    };
+  }
+
+  const postId = noteComposer.postId;
+  const targetPost =
+    visibleItems.find((p) => p.id === postId) ?? findInCachedPostLists(postId);
+
+  if (restoredNoteDraft) {
+    if (
+      targetPost &&
+      (targetPost.mode !== "note" || typeof targetPost.trashedAt !== "undefined")
+    ) {
+      return {
+        mode: "edit",
+        editingNotePostId: postId,
+        sessionKey: null,
+        resolvedDraft: null,
+        missingTargetNextQuery: buildQueryForNoteComposerClose(effectiveQueryString)
+          .nextQuery,
+        shouldConsumeRestoredDraft: false,
+      };
+    }
+
+    if (!targetPost && listState.hasData && !listState.isFetching) {
+      return {
+        mode: "edit",
+        editingNotePostId: postId,
+        sessionKey: null,
+        resolvedDraft: null,
+        missingTargetNextQuery: buildQueryForNoteComposerClose(effectiveQueryString)
+          .nextQuery,
+        shouldConsumeRestoredDraft: false,
+      };
+    }
+
+    return {
+      mode: "edit",
+      editingNotePostId: postId,
+      sessionKey: `edit:${postId}`,
+      resolvedDraft: {
+        title: restoredNoteDraft.title,
+        contentJson: restoredNoteDraft.contentJson,
+        plainText: restoredNoteDraft.plainText,
+      },
+      missingTargetNextQuery: null,
+      shouldConsumeRestoredDraft: true,
+    };
+  }
+
+  if (!targetPost && !listState.hasData && listState.isFetching) {
+    return {
+      mode: "edit",
+      editingNotePostId: postId,
+      sessionKey: `edit:${postId}`,
+      resolvedDraft: null,
+      missingTargetNextQuery: null,
+      shouldConsumeRestoredDraft: false,
+    };
+  }
+
+  if (
+    !targetPost ||
+    targetPost.mode !== "note" ||
+    typeof targetPost.trashedAt !== "undefined"
+  ) {
+    return {
+      mode: "edit",
+      editingNotePostId: postId,
+      sessionKey: null,
+      resolvedDraft: null,
+      missingTargetNextQuery: buildQueryForNoteComposerClose(effectiveQueryString)
+        .nextQuery,
+      shouldConsumeRestoredDraft: false,
+    };
+  }
+
+  const draft: NoteDraft = {
+    title: targetPost.title ?? "",
+    contentJson: clonePostContent(targetPost.content),
+    plainText: targetPost.contentText,
+  };
   return {
-    noteModalMode,
-    editingNotePostId,
-    noteModalInitialTitle,
-    noteModalInitialContent,
-    noteModalInitialPlainText,
+    mode: "edit",
+    editingNotePostId: targetPost.id,
+    sessionKey: `edit:${targetPost.id}`,
+    resolvedDraft: draft,
+    missingTargetNextQuery: null,
+    shouldConsumeRestoredDraft: false,
   };
 }
+
+export function useNoteComposerState(
+  input: UseNoteComposerStateInput
+): UseNoteComposerStateOutput {
+  return resolveNoteComposerSession(input);
+}
+
+export { resolveNoteComposerSession };
