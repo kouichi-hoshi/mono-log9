@@ -11,7 +11,7 @@ test("logout history: ログアウト後の戻る/進むで履歴状態を検証
 
   await logoutFromUserMenu(page);
   await expect(page).toHaveURL("/");
-  await expect(page.getByRole("button", { name: "ログイン" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Googleでログイン" })).toBeVisible();
 
   await page.goBack();
   await expect(page).toHaveURL(/stubAuth=1/);
@@ -19,7 +19,7 @@ test("logout history: ログアウト後の戻る/進むで履歴状態を検証
 
   await page.goForward();
   await expect(page).toHaveURL("/");
-  await expect(page.getByRole("button", { name: "ログイン" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Googleでログイン" })).toBeVisible();
 });
 
 test("logout history: 戻る時の navigation type（BFCache観測値）を取得できる", async ({

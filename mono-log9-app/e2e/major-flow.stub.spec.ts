@@ -13,7 +13,6 @@ test("major flow (stub): login -> create/edit -> favorite -> trash -> restore ->
 
   await page.goto("/?view=memo");
 
-  await page.getByRole("button", { name: "ログイン" }).click();
   await page.getByRole("button", { name: "Googleでログイン" }).click();
   await expect(page).toHaveURL(/view=memo/);
   await expect(page).toHaveURL(/stubAuth=1/);

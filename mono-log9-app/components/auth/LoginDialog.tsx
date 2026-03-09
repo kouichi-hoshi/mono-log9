@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * モーダル形式のログインUI。
+ * 現状は未使用（UnauthScreen では GoogleLoginButton を使用）。
+ * 複数 SSO（Google / GitHub など）やメールログインを並列で組み込む場合は、
+ * このコンポーネントを再利用する想定。
+ */
+
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -22,11 +29,13 @@ const LOGIN_ERROR_MESSAGE =
 type LoginDialogProps = {
   authMode: AuthMode;
   callbackUrl: string;
+  triggerLabel?: string;
 };
 
 export default function LoginDialog({
   authMode,
   callbackUrl,
+  triggerLabel = "ログイン",
 }: LoginDialogProps) {
   const [open, setOpen] = React.useState(false);
   const router = useRouter();
@@ -49,7 +58,7 @@ export default function LoginDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>ログイン</Button>
+        <Button>{triggerLabel}</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
