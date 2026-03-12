@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   title: APP_NAME,
   description: APP_DESCRIPTION,
   icons: {
-    icon: "/favicon.ico",
+    icon: "/icons/favicon.ico",
     apple: "/icons/apple-touch-icon.png",
   },
 };
