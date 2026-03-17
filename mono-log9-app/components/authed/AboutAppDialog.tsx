@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { APP_NAME } from "@/lib/appMeta";
+import { APP_NAME, APP_NAME_JA } from "@/lib/appMeta";
 
 function getAppVersion(): string {
   return typeof process.env.NEXT_PUBLIC_APP_VERSION === "string"
@@ -22,6 +22,8 @@ type AboutAppDialogProps = {
 
 export default function AboutAppDialog({ open, onOpenChange }: AboutAppDialogProps) {
   const version = getAppVersion();
+  const displayAppName = `${APP_NAME}（${APP_NAME_JA}）`;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -34,7 +36,7 @@ export default function AboutAppDialog({ open, onOpenChange }: AboutAppDialogPro
         <dl className="mt-4 space-y-2">
           <div>
             <dt className="text-sm font-medium text-foreground/70">アプリ名</dt>
-            <dd className="text-base font-semibold">{APP_NAME}</dd>
+            <dd className="text-base font-semibold">{displayAppName}</dd>
           </div>
           <div>
             <dt className="text-sm font-medium text-foreground/70">バージョン</dt>

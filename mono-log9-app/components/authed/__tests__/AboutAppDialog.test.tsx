@@ -19,7 +19,7 @@ describe("AboutAppDialog", () => {
     render(<AboutAppDialog open onOpenChange={jest.fn()} />);
 
     expect(screen.getByRole("dialog", { name: "このアプリについて" })).toBeInTheDocument();
-    expect(screen.getByText("Mono Log")).toBeInTheDocument();
+    expect(screen.getByText("Mono Log（モノログ）")).toBeInTheDocument();
     expect(screen.getByText("v0.9.0")).toBeInTheDocument();
   });
 
