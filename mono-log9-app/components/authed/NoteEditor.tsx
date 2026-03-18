@@ -55,6 +55,7 @@ export default function NoteEditor({
 }: NoteEditorProps) {
   const [isLinkDialogOpen, setIsLinkDialogOpen] = React.useState(false);
   const [showLinkSelectionError, setShowLinkSelectionError] = React.useState(false);
+  const [, setToolbarRenderNonce] = React.useState(0);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -102,6 +103,9 @@ export default function NoteEditor({
       if (showLinkSelectionError) {
         setShowLinkSelectionError(false);
       }
+    },
+    onSelectionUpdate: () => {
+      setToolbarRenderNonce((current) => current + 1);
     },
   });
 

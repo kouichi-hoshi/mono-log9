@@ -79,4 +79,40 @@ describe("NoteToolbar", () => {
     expect(onLinkClick).toHaveBeenCalledTimes(1);
     expect(onUnlinkClick).toHaveBeenCalledTimes(1);
   });
+
+  it("reflects active formatting state with aria-pressed and active classes", () => {
+    const { editor } = createEditorMock();
+    (editor.isActive as jest.Mock).mockImplementation((name: string, attrs?: { level?: number }) => {
+      if (name === "heading" && attrs?.level === 2) {
+        return true;
+      }
+
+      if (name === "bold") {
+        return true;
+      }
+
+      if (name === "link") {
+        return true;
+      }
+
+      return false;
+    });
+
+    render(
+      <NoteToolbar
+        editor={editor}
+        onLinkClick={jest.fn()}
+        onUnlinkClick={jest.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "H2" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "H2" })).toHaveClass("border-foreground/50");
+    expect(screen.getByRole("button", { name: "太字" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "太字" })).toHaveClass("bg-foreground/10");
+    expect(screen.getByRole("button", { name: "リンク解除" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "リンク" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "H3" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "箇条書き" })).toHaveAttribute("aria-pressed", "false");
+  });
 });
